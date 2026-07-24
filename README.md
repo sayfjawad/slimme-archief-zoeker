@@ -1,11 +1,22 @@
-# wilders-search
+# slimme-archief-zoeker
 
-Archive + AI-search pipeline for **all public statements of a politician**,
-configured per person (`config/<slug>.json`). First target: Geert Wilders —
-live at **https://wilders.scrib-r.com**. Same architecture and
-transcript/index format as [abo-ali-search](https://github.com/sayfjawad/abo-ali-search).
+A smart, context-aware search engine over **Dutch politicians' public
+record** — parliamentary transcripts, historical Handelingen, and video
+appearances, searchable by meaning (not just keywords), with source, date
+and a playback link that jumps to the exact moment. Configured per person
+(`config/<slug>.json`); Kamerverslagen, Handelingen and debate video are
+shared across every tracked politician's config, so onboarding a new one
+reuses whatever the archive already has instead of redownloading it (see
+"Multiple politicians, one shared archive" below).
 
-![Wilders under a magnifying glass](static/hero.webp)
+Two live instances so far:
+- **https://wilders.scrib-r.com** — Geert Wilders
+- **https://yesilgoz.scrib-r.com** — Dilan Yeşilgöz
+
+Same architecture and transcript/index format as
+[abo-ali-search](https://github.com/sayfjawad/abo-ali-search).
+
+![Politician under a magnifying glass](static/hero.webp)
 
 Ask a question in plain language and get the matching fragments across three
 decades of parliamentary records and videos — each with date, timestamp,
@@ -78,6 +89,41 @@ with N parallel shards spread over multiple hosts (see `hosts.env.example`):
   that history into a human progress report with download rate and a
   completion prognosis.
 
+## Multiple politicians, one shared archive
+
+A parliamentary debate is inherently multi-speaker; a politician's own
+YouTube channel is not (and may feature other people entirely). So only
+what's objectively shared is shared:
+
+- **Shared** (`/data/SHARED`, `SHARED_DIR` env var): TK verslag + Handelingen
+  XML, the multi-speaker transcripts parsed from them (`tk_parse.py`/
+  `ob_parse.py` already keep every speaker in a vergadering, not just the
+  configured person, and skip re-parsing one already in the pool), and
+  Debat Direct video (keyed by date+slug, reused as-is by anyone who spoke
+  in that session). Each shared transcript's metadata carries a `speakers`
+  list, so `build_index.py` can filter the pool down to "debates this
+  person was actually in" per config.
+- **Per person** (`<data_dir>` in their config): their own YouTube channel(s)
+  audio + ASR transcripts, and their own search index/app instance — never
+  shared, since there's no cross-person attribution inside it.
+
+Onboarding a new politician (~a few hours of hands-on work, not days):
+persoon-id via TK OData (`contains(Achternaam,'...')`), verify their party's
+YouTube channel (don't guess — confirm it), write `config/<slug>.json`,
+`tk_parse.py <slug>` + `ob_parse.py <slug>` (usually mostly free reuse from
+the shared pool), `PERSON=<slug> ./dg_distributed.sh` for their few missing
+debate videos, `PERSON=<slug> python3 yt_sync.py` + diarized
+`transcribe_batch.py`, `PERSON=<slug> python3 build_index.py`, then a
+`<slug>-search.service` unit + nginx vhost + certbot on the edge host. In
+practice Yeşilgöz reused 326 of 529 relevant vergaderingen and 85 of 279
+debate days for free from Wilders' already-downloaded data.
+
+Every rebuild (`build_index.py`, both this repo's and abo-ali-search's) now
+backs up the current index to `index/backups/<date>/` first, and
+`backup_daily.sh` mirrors the transcript pool + each person's own data to
+`/data/backups/` daily -- added after a rebuild once wiped a sibling
+project's live index with nothing to restore from.
+
 ## Search app
 
 `app.py` + `static/index.html`: FastAPI, semantic search (GPU), date and
@@ -96,11 +142,14 @@ always be verified against the original.
 
 ## Deployment
 
-- App as a systemd **user** service (linger enabled) so it survives reboots:
-  `systemctl --user {status,restart} wilders-search`.
-- A small edge VPS runs nginx with TLS (certbot) and proxies the public
-  domain to the GPU host over a private Tailscale network, with streaming-
-  friendly proxy settings for the media endpoints.
+- Each politician gets their own systemd **user** service (linger enabled,
+  its own port) so it survives reboots: `systemctl --user {status,restart}
+  <slug>-search`, e.g. `wilders-search` (8902), `yesilgoz-search` (8903).
+- A small edge VPS runs nginx with TLS (certbot) and proxies each politician's
+  subdomain to the GPU host over a private Tailscale network, with
+  streaming-friendly proxy settings for the media endpoints. `*.scrib-r.com`
+  is wildcard-DNS'd, so a new politician's subdomain needs no DNS work.
+- `resume.sh` loops over every tracked person for sync/video/app recovery.
 
 ## Gotchas worth knowing
 
