@@ -2,6 +2,7 @@
   "person": "Dilan Yeşilgöz",
   "slug": "yesilgoz",
   "data_dir": "/data/YESILGOZ",
+  "hero_image": "yesilgoz-hero.webp",
   "tk": {
     "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
     "persoon_id": "9ab41898-332f-4c08-a834-d58b4669c990",

@@ -312,6 +312,7 @@ def api_stats():
         "chunks": db.execute("SELECT COUNT(*) FROM chunks").fetchone()[0],
         "person": PERSON,
         "person_chunks": int(_state["person_mask"].sum().item()),
+        "hero_image": CFG.get("hero_image"),
     }
 
 

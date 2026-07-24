@@ -2,6 +2,7 @@
   "person": "Geert Wilders",
   "slug": "wilders",
   "data_dir": "/data/WILDERS",
+  "hero_image": "hero.webp",
   "tk": {
     "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
     "persoon_id": "6d33b9bc-7d3a-4a60-b2d7-c2b70cd11ab1",

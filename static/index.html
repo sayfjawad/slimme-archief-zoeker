@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wilders Archief — slim zoeken</title>
+<title>Archief — slim zoeken</title>
 <style>
 :root{
   --bg:#f4f5f7; --panel:#ffffff; --ink:#1e2430; --muted:#68707f;
@@ -113,10 +113,10 @@ tr.cited td{border-inline-start:3px solid var(--accent)}
   <header class="hero">
     <button id="lang-toggle">English</button>
     <div class="hero-text">
-      <h1><span data-i18n="heroTitle">Wilders Archief</span> <span class="badge" id="count-badge"></span></h1>
-      <p class="tagline" data-i18n="heroTagline">Alles wat Geert Wilders in het openbaar zei — doorzoekbaar, met bron, datum en tijdstip.</p>
+      <h1><span data-i18n="heroTitle">Archief</span> <span class="badge" id="count-badge"></span></h1>
+      <p class="tagline" data-i18n="heroTagline"></p>
     </div>
-    <img class="hero-img" src="/hero.webp" alt="Geert Wilders onder een vergrootglas" data-i18n-alt="heroAlt">
+    <img class="hero-img" id="hero-img" alt="" data-i18n-alt="heroAlt" style="display:none">
   </header>
 
   <div class="sub"><span data-i18n="sub">Slim semantisch zoeken in officiële Tweede Kamer-verslagen en transcripties van openbare video's — stel een vraag of zoek een onderwerp, en krijg de fragmenten met datum, tijdstip en afspeellinks.</span></div>
@@ -127,7 +127,7 @@ tr.cited td{border-inline-start:3px solid var(--accent)}
     <button id="btn-search" class="secondary" data-i18n="btnSearch">🔍 Alleen zoeken</button>
   </div>
   <div class="filters">
-    <label><input type="checkbox" id="only-person" checked> <span data-i18n="onlyPerson">alleen uitspraken van Wilders</span></label>
+    <label><input type="checkbox" id="only-person" checked> <span data-i18n="onlyPerson"></span></label>
     <label><span data-i18n="from">van</span> <input type="date" id="date-from"></label>
     <label><span data-i18n="to">tot</span> <input type="date" id="date-to"></label>
     <label><span data-i18n="topk">resultaten</span> <select id="topk"><option>20</option><option selected>30</option><option>40</option><option>60</option></select></label>
@@ -147,7 +147,7 @@ tr.cited td{border-inline-start:3px solid var(--accent)}
   <!-- ---------- about (Dutch) ---------- -->
   <section class="about" id="about-nl">
     <h2>Wat is dit?</h2>
-    <p>Dit archief verzamelt <b>openbare uitspraken van Geert Wilders</b> uit twee soorten bronnen:
+    <p>Dit archief verzamelt <b>openbare uitspraken van <span class="person-name">Geert Wilders</span></b> uit twee soorten bronnen:
     de <b>officiële verslagen van de Tweede Kamer</b> (via het open datamagazijn van de Kamer) en
     <b>AI-transcripties van openbare video's</b>. Alles is doorzoekbaar op betekenis, niet alleen op
     letterlijke woorden.</p>
@@ -158,7 +158,7 @@ tr.cited td{border-inline-start:3px solid var(--accent)}
     <p>Typ een vraag of onderwerp in het zoekveld — bijvoorbeeld "wat zei hij over de zorgpremie?"
     of "kernenergie". <b>"Alleen zoeken"</b> toont de fragmenten; <b>"Vraag de AI"</b> schrijft een
     samenvatting met bronverwijzingen [n] die naar de fragmenten linken. Met het vinkje
-    "alleen uitspraken van Wilders" beperk je de resultaten tot zijn eigen woorden; zonder vinkje
+    "alleen uitspraken van <span class="person-name">Wilders</span>" beperk je de resultaten tot zijn eigen woorden; zonder vinkje
     zoek je ook in de reacties van andere sprekers in dezelfde debatten.</p>
     <h3>Bronnen &amp; techniek</h3>
     <p>Kamerverslagen zijn de gecorrigeerde, officiële transcripten (bron: gegevensmagazijn
@@ -170,7 +170,7 @@ tr.cited td{border-inline-start:3px solid var(--accent)}
   <!-- ---------- about (English) ---------- -->
   <section class="about" id="about-en" style="display:none">
     <h2>What is this?</h2>
-    <p>This archive collects <b>public statements by Geert Wilders</b> from two kinds of sources:
+    <p>This archive collects <b>public statements by <span class="person-name">Geert Wilders</span></b> from two kinds of sources:
     the <b>official transcripts of the Dutch House of Representatives</b> (via the House's open
     data API) and <b>AI transcriptions of public videos</b>. Everything is searchable by meaning,
     not just literal keywords.</p>
@@ -181,7 +181,7 @@ tr.cited td{border-inline-start:3px solid var(--accent)}
     <p>Type a question or topic in the search box — e.g. "what did he say about healthcare
     premiums?" or "nuclear energy". <b>"Search only"</b> shows the matching fragments;
     <b>"Ask the AI"</b> writes a summary with source references [n] linking to the fragments.
-    The "only statements by Wilders" checkbox limits results to his own words; uncheck it to also
+    The "only statements by <span class="person-name">Wilders</span>" checkbox limits results to his own words; uncheck it to also
     search the responses of other speakers in the same debates. The archive is in Dutch, so Dutch
     queries give the best results.</p>
     <h3>Sources &amp; technology</h3>
@@ -207,14 +207,14 @@ const $ = s => document.querySelector(s);
 /* ---------------- i18n ---------------- */
 const I18N = {
   nl: {
-    docTitle:'Wilders Archief — slim zoeken',
-    heroTitle:'Wilders Archief',
-    heroTagline:'Alles wat Geert Wilders in het openbaar zei — doorzoekbaar, met bron, datum en tijdstip.',
-    heroAlt:'Geert Wilders onder een vergrootglas',
+    docTitle:p=>`${p} Archief — slim zoeken`,
+    heroTitle:p=>`${p} Archief`,
+    heroTagline:p=>`Alles wat ${p} in het openbaar zei — doorzoekbaar, met bron, datum en tijdstip.`,
+    heroAlt:p=>`${p} onder een vergrootglas`,
     sub:"Slim semantisch zoeken in officiële Tweede Kamer-verslagen en transcripties van openbare video's — stel een vraag of zoek een onderwerp, en krijg de fragmenten met datum, tijdstip en afspeellinks.",
     placeholder:'bijv. wat zei hij over de hypotheekrenteaftrek? / asielbeleid / kernenergie…',
     btnAsk:'🤖 Vraag de AI', btnSearch:'🔍 Alleen zoeken',
-    onlyPerson:'alleen uitspraken van Wilders',
+    onlyPerson:p=>`alleen uitspraken van ${p}`,
     from:'van', to:'tot', topk:'resultaten',
     thDate:'Datum', thTime:'Tijd', thText:'Tekst & afspelen', thSource:'Bron',
     thNumTitle:'Sorteer op relevantie', thDateTitle:'Klik om op datum te sorteren',
@@ -231,14 +231,14 @@ const I18N = {
     langBtn:'English'
   },
   en: {
-    docTitle:'Wilders Archive — smart search',
-    heroTitle:'The Wilders Archive',
-    heroTagline:'Everything Geert Wilders said in public — searchable, with source, date and timestamp.',
-    heroAlt:'Geert Wilders under a magnifying glass',
+    docTitle:p=>`${p} Archive — smart search`,
+    heroTitle:p=>`The ${p} Archive`,
+    heroTagline:p=>`Everything ${p} said in public — searchable, with source, date and timestamp.`,
+    heroAlt:p=>`${p} under a magnifying glass`,
     sub:'Smart semantic search across official parliamentary transcripts and AI transcriptions of public videos — ask a question or search a topic, and get the fragments with date, timestamp and playback links. (The archive is in Dutch; Dutch queries give the best results.)',
     placeholder:'e.g. what did he say about mortgage interest deduction? / asylum policy…',
     btnAsk:'🤖 Ask the AI', btnSearch:'🔍 Search only',
-    onlyPerson:'only statements by Wilders',
+    onlyPerson:p=>`only statements by ${p}`,
     from:'From', to:'To', topk:'Results',
     thDate:'Date', thTime:'Time', thText:'Text & playback', thSource:'Source',
     thNumTitle:'Sort by relevance', thDateTitle:'Click to sort by date',
@@ -259,15 +259,18 @@ let lang = new URLSearchParams(location.search).get('lang')
         || localStorage.getItem('lang') || 'nl';
 if(!I18N[lang]) lang = 'nl';
 const t = k => I18N[lang][k];
+const personName = () => (stats && stats.person) || '…';
+const resolve = v => typeof v === 'function' ? v(personName()) : v;
 
 let stats = null;
 let lastStatus = null;
 
 function applyLang(){
   document.documentElement.lang = lang;
-  document.title = t('docTitle');
-  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = t(el.dataset.i18n); });
-  document.querySelectorAll('[data-i18n-alt]').forEach(el=>{ el.alt = t(el.dataset.i18nAlt); });
+  document.title = resolve(t('docTitle'));
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = resolve(t(el.dataset.i18n)); });
+  document.querySelectorAll('[data-i18n-alt]').forEach(el=>{ el.alt = resolve(t(el.dataset.i18nAlt)); });
+  document.querySelectorAll('.person-name').forEach(el=>{ el.textContent = personName(); });
   $('#q').placeholder = t('placeholder');
   $('#th-num').title = t('thNumTitle');
   $('#th-date').title = t('thDateTitle');
@@ -443,6 +446,12 @@ $('#q').addEventListener('keydown',e=>{ if(e.key==='Enter') run(e.ctrlKey?'searc
 fetch('/api/stats').then(r=>r.json()).then(d=>{
   stats = d;
   $('#count-badge').textContent = t('badge')(d.videos, d.chunks);
+  if(d.hero_image){
+    const img = $('#hero-img');
+    img.src = '/' + d.hero_image;
+    img.style.display = '';
+  }
+  applyLang();  // re-apply now that the person's name is known
 }).catch(()=>{});
 
 applyLang();
