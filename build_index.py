@@ -21,9 +21,11 @@ Two sources, per pipeline_config.py:
 """
 import itertools
 import json
+import shutil
 import sqlite3
 import sys
 import time
+from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -103,6 +105,43 @@ def merge_segments(segments):
     return chunks
 
 
+BACKUP_RETENTION_DAYS = 14
+
+
+def backup_and_prune_index(index_dir: Path) -> None:
+    """Copy the current index.sqlite + embeddings.npy to
+    <index_dir>/backups/<YYYY-MM-DD>/ before this run overwrites them, and
+    drop backups older than BACKUP_RETENTION_DAYS. One backup per calendar
+    day is enough (skip if today's already exists, e.g. a second run same
+    day) -- rebuilding is destructive (db_path.unlink() below), so an
+    index that took real, hard-to-redo work to build (transcription,
+    diarization) must never be only one bad run away from being gone with
+    nothing to fall back on. Cheap: the index is small; it's the source
+    transcripts that are expensive, and this doesn't replace backing those
+    up too where they aren't already durably stored elsewhere.
+    """
+    backups_dir = index_dir / "backups"
+    today_dir = backups_dir / date.today().isoformat()
+    src_db = index_dir / "index.sqlite"
+    src_emb = index_dir / "embeddings.npy"
+    if not today_dir.exists() and (src_db.exists() or src_emb.exists()):
+        today_dir.mkdir(parents=True, exist_ok=True)
+        for src in (src_db, src_emb):
+            if src.exists():
+                shutil.copy2(src, today_dir / src.name)
+        print(f"backup: {today_dir}", flush=True)
+
+    cutoff = date.today() - timedelta(days=BACKUP_RETENTION_DAYS)
+    if backups_dir.exists():
+        for d in backups_dir.iterdir():
+            try:
+                old = date.fromisoformat(d.name) < cutoff
+            except ValueError:
+                continue
+            if old:
+                shutil.rmtree(d, ignore_errors=True)
+
+
 def find_media_file(youtube_dir: Path, base: str) -> str:
     if base.startswith("yt_"):
         for ext in (".opus", ".m4a", ".webm"):
@@ -115,6 +154,8 @@ def main():
     cfg = load_config(sys.argv[1] if len(sys.argv) > 1 else None)
     ensure_dirs(cfg)
     paths = cfg["_paths"]
+
+    backup_and_prune_index(paths["index"])
 
     db_path = paths["index"] / "index.sqlite"
     if db_path.exists():
