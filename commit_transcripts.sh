@@ -40,10 +40,13 @@ if git diff --cached --quiet; then
   echo "  geen wijzigingen"
 else
   N=$(git diff --cached --stat | tail -1)
-  git commit -q -m "Daily transcript sync: $(date '+%F')
+  if ! git commit -q -m "Daily transcript sync: $(date '+%F')
 
 $N
 
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"; then
+    echo "  commit FAALDE (zie output hierboven, bv. ontbrekende git user.email/name)"
+    exit 1
+  fi
   git push && echo "  gecommit en gepusht" || echo "  push FAALDE"
 fi
