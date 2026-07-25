@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Building a Political Archive: Approach, Hardware, and Failures</title>
+<meta name="description" content="Field report on the multi-politician archive project — approach, hardware, data sources, and 14 documented failures/near-misses including one critical incident.">
+<style>
+:root{
+  --bg:#10141b; --panel:#171d27; --panel-2:#1c2330;
+  --ink:#e4e7ed; --muted:#8891a3; --faint:#5b6478;
+  --border:#262f3d; --border-soft:#1e2532;
+  --accent:#e2a23b; --accent-ink:#3a2a0f;
+  --critical:#d95f4b; --critical-soft:rgba(217,95,75,.12);
+  --amber-soft:rgba(226,162,59,.10);
+  --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, ui-serif, serif;
+}
+:root[data-theme="light"]{
+  --bg:#f2efe8; --panel:#fbf9f4; --panel-2:#eeebe2;
+  --ink:#1c2027; --muted:#5c6270; --faint:#8a90a0;
+  --border:#dcd7c8; --border-soft:#e6e2d5;
+  --accent:#a9691a; --accent-ink:#fff6e8;
+  --critical:#a83a28; --critical-soft:rgba(168,58,40,.08);
+  --amber-soft:rgba(169,105,26,.08);
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#f2efe8; --panel:#fbf9f4; --panel-2:#eeebe2;
+    --ink:#1c2027; --muted:#5c6270; --faint:#8a90a0;
+    --border:#dcd7c8; --border-soft:#e6e2d5;
+    --accent:#a9691a; --accent-ink:#fff6e8;
+    --critical:#a83a28; --critical-soft:rgba(168,58,40,.08);
+    --amber-soft:rgba(169,105,26,.08);
+  }
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--font-serif); line-height:1.65; font-size:17px;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{ background:var(--accent); color:var(--accent-ink); }
+a{ color:var(--accent); text-decoration-thickness:1px; text-underline-offset:2px; }
+a:focus-visible, button:focus-visible, summary:focus-visible{
+  outline:2px solid var(--accent); outline-offset:2px; border-radius:2px;
+}
+
+.mono{ font-family:var(--font-mono); }
+.eyebrow{
+  font-family:var(--font-mono); font-size:.72rem; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--accent); font-weight:600; display:flex; align-items:center; gap:.6em;
+}
+.eyebrow::before{ content:""; width:1.4em; height:1px; background:var(--accent); opacity:.6; }
+
+/* ---------------------------------------------------------------- masthead */
+.masthead{
+  border-bottom:1px solid var(--border); padding:3.2rem 1.5rem 2.4rem;
+  background:
+    linear-gradient(var(--panel), var(--panel)) padding-box,
+    repeating-linear-gradient(180deg, transparent 0 27px, var(--border-soft) 27px 28px) padding-box;
+}
+.masthead-inner{ max-width:740px; margin:0 auto; }
+.masthead .eyebrow{ margin-bottom:1.1rem; }
+h1{
+  font-family:var(--font-mono); font-weight:700; font-size:clamp(1.6rem,4.4vw,2.5rem);
+  line-height:1.18; letter-spacing:-.01em; margin:0 0 .9rem; text-wrap:balance;
+  color:var(--ink);
+}
+.dek{
+  font-family:var(--font-serif); font-style:italic; font-size:1.15rem; color:var(--muted);
+  max-width:62ch; margin:0 0 1.6rem; text-wrap:pretty;
+}
+.meta-strip{
+  display:flex; flex-wrap:wrap; gap:1.4rem; font-family:var(--font-mono); font-size:.78rem;
+  color:var(--faint); padding-top:1.3rem; border-top:1px dashed var(--border);
+}
+.meta-strip b{ color:var(--muted); font-weight:600; }
+.meta-strip span{ display:flex; gap:.5em; }
+
+/* ---------------------------------------------------------------- body */
+.wrap{ max-width:740px; margin:0 auto; padding:0 1.5rem 6rem; }
+section{ padding-top:3.2rem; }
+section > .eyebrow{ margin-bottom:1.1rem; }
+h2{
+  font-family:var(--font-mono); font-size:1.3rem; font-weight:700; letter-spacing:-.005em;
+  margin:0 0 1.1rem; text-wrap:balance;
+}
+h3{
+  font-family:var(--font-mono); font-size:.98rem; font-weight:700; color:var(--ink);
+  margin:1.6rem 0 .6rem;
+}
+p{ margin:0 0 1.05em; max-width:68ch; }
+strong{ color:var(--ink); font-weight:700; }
+.lede{ font-size:1.06rem; }
+.lede strong{ background:var(--amber-soft); padding:.05em .2em; border-radius:2px; }
+
+/* ------------------------------------------------------------- data table */
+.datatable-wrap{ overflow-x:auto; border:1px solid var(--border); border-radius:3px; margin:0 0 1.4rem; }
+table{ border-collapse:collapse; width:100%; font-size:.86rem; min-width:560px; }
+thead th{
+  font-family:var(--font-mono); text-align:left; font-size:.68rem; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--faint); font-weight:600;
+  padding:.6rem .9rem; border-bottom:1px solid var(--border); background:var(--panel-2);
+  white-space:nowrap;
+}
+tbody td{
+  padding:.65rem .9rem; border-bottom:1px solid var(--border-soft); vertical-align:top;
+  font-family:var(--font-serif);
+}
+tbody tr:last-child td{ border-bottom:none; }
+tbody td:first-child{ font-family:var(--font-mono); font-weight:600; color:var(--ink); white-space:nowrap; }
+td.num{ font-variant-numeric:tabular-nums; font-family:var(--font-mono); }
+.gotcha{ color:var(--muted); font-size:.92em; }
+
+/* ------------------------------------------------------------ hw cards */
+.hw-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:.9rem; margin:0 0 1rem; }
+.hw-card{
+  border:1px solid var(--border); background:var(--panel); border-radius:3px; padding:1rem 1.1rem;
+}
+.hw-card .name{ font-family:var(--font-mono); font-weight:700; font-size:.88rem; color:var(--ink); }
+.hw-card .role{ font-family:var(--font-mono); font-size:.68rem; letter-spacing:.06em; text-transform:uppercase; color:var(--accent); margin:.15rem 0 .55rem; }
+.hw-card .spec{ font-size:.87rem; color:var(--muted); line-height:1.5; }
+.hw-card .spec b{ color:var(--ink); font-variant-numeric:tabular-nums; }
+
+/* ---------------------------------------------------------- incident log */
+.log{ display:flex; flex-direction:column; gap:0; border-top:1px solid var(--border); }
+.entry{
+  border-bottom:1px solid var(--border); padding:1.3rem 0 1.3rem 1.15rem;
+  border-left:3px solid var(--border);
+}
+.entry.sev-critical{ border-left-color:var(--critical); background:linear-gradient(90deg, var(--critical-soft), transparent 55%); }
+.entry.sev-note{ border-left-color:var(--faint); }
+.entry-head{ display:flex; align-items:baseline; gap:.7rem; flex-wrap:wrap; margin-bottom:.45rem; }
+.entry-id{ font-family:var(--font-mono); font-size:.78rem; color:var(--faint); font-weight:600; }
+.tag{
+  font-family:var(--font-mono); font-size:.63rem; letter-spacing:.08em; text-transform:uppercase;
+  font-weight:700; padding:.16em .5em; border-radius:2px; white-space:nowrap;
+}
+.tag.near-miss{ color:var(--accent); background:var(--amber-soft); border:1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+.tag.critical{ color:var(--critical); background:var(--critical-soft); border:1px solid color-mix(in srgb, var(--critical) 45%, transparent); }
+.tag.resolved{ color:var(--faint); background:transparent; border:1px solid var(--border); }
+.entry h3{ margin:0 0 .5rem; font-size:1rem; }
+.entry p{ font-size:.96rem; }
+.entry p:last-child{ margin-bottom:0; }
+.lesson{
+  margin-top:.7rem; padding:.7rem .9rem; background:var(--panel); border:1px solid var(--border);
+  border-radius:3px; font-size:.9rem;
+}
+.lesson .eyebrow{ font-size:.62rem; margin-bottom:.35rem; }
+.lesson .eyebrow::before{ display:none; }
+
+/* --------------------------------------------------------------- closing */
+.closing{
+  margin-top:3.5rem; padding:1.6rem 1.7rem; background:var(--panel); border:1px solid var(--border);
+  border-radius:3px; border-left:3px solid var(--accent);
+}
+.closing p{ margin:0 0 .8rem; font-size:1.02rem; }
+.closing p:last-child{ margin-bottom:0; }
+
+footer{
+  max-width:740px; margin:0 auto; padding:2.5rem 1.5rem 4rem; color:var(--faint);
+  font-family:var(--font-mono); font-size:.76rem; border-top:1px dashed var(--border); margin-top:2rem;
+}
+
+code{ font-family:var(--font-mono); font-size:.9em; background:var(--panel-2); padding:.1em .35em; border-radius:2px; color:var(--ink); }
+
+@media (max-width:600px){
+  body{ font-size:16px; }
+  .masthead{ padding:2.4rem 1.1rem 1.8rem; }
+  .wrap{ padding:0 1.1rem 4rem; }
+  section{ padding-top:2.3rem; }
+}
+</style>
+</head>
+<body>
+
+<article>
+<div class="masthead">
+  <div class="masthead-inner">
+    <div class="eyebrow">Field Report · Infrastructure Postmortem</div>
+    <h1>Building a smart, context-aware archive of Dutch politicians</h1>
+    <p class="dek">Approach, hardware, data sources, and — deliberately — the failures and near-misses, written down so the next build skips them.</p>
+    <div class="meta-strip">
+      <span><b>Written</b> 2026-07-25</span>
+      <span><b>Systems</b> slimme-archief-zoeker · abo-ali-search</span>
+      <span><b>Live</b> wilders.scrib-r.com · yesilgoz.scrib-r.com</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<section>
+<p class="lede">This is not a highlight reel. The point of writing it down is the failures: several cost real hours, one briefly destroyed a live, public dataset. If you're building something similar, the fastest way to skip our mistakes is to read <a href="#log">the incident log</a> first.</p>
+</section>
+
+<section id="what">
+<div class="eyebrow">01 — What this is</div>
+<h2>A searchable record, not a database</h2>
+<p>A pipeline that collects everything a public figure has said — official government transcripts, historical records, video appearances — parses it into a searchable, timestamped archive, and serves it through semantic (meaning-based, not keyword) search with an optional AI summary. Every result links back to a playable moment in the original source, so a claim can always be checked against the primary record.</p>
+<p>Two live instances exist so far (Geert Wilders, Dilan Yeşilgöz), architected from the start to <strong>share data across politicians</strong> rather than duplicate it. A sibling project, abo-ali-search, applies the same architecture to a single public figure and predates the multi-politician work — its diarization pattern and infrastructure conventions were reused directly, several times, described below.</p>
+</section>
+
+<section id="sources">
+<div class="eyebrow">02 — Data sources</div>
+<h2>What we pulled, and from where</h2>
+<div class="datatable-wrap">
+<table>
+<thead><tr><th>Source</th><th>What</th><th>Method</th><th>Gotcha</th></tr></thead>
+<tbody>
+<tr><td>TK OData</td><td>Official corrected parliamentary transcripts, 2013–present</td><td>Open API, unfiltered bulk download</td><td class="gotcha"><code>$top</code> silently caps pagination — omit it</td></tr>
+<tr><td>Handelingen</td><td>Pre-2013 parliamentary record</td><td>SRU search, per-politician</td><td class="gotcha">429 without a request delay</td></tr>
+<tr><td>YouTube</td><td>Party channel content</td><td><code>yt-dlp</code>, incremental archive</td><td class="gotcha">Rate-limited within minutes, no throttle</td></tr>
+<tr><td>Debat Direct</td><td>Plenary session video, ~2010–present</td><td>Windowed HLS, stream-copy</td><td class="gotcha">Committee rooms: no coverage, ever</td></tr>
+<tr><td>Abo Ali's output</td><td>Historical VOD + current live broadcast</td><td><code>yt-dlp</code> then raw HLS capture</td><td class="gotcha">Current output isn't VOD at all</td></tr>
+</tbody>
+</table>
+</div>
+<p class="gotcha">The YouTube channel content is <strong>not curated</strong> — it's the entire channel, unfiltered: campaign ads, holiday greetings, and clips of other politicians from the same party end up in the pool, sorted out only by diarization at index time.</p>
+</section>
+
+<section id="hardware">
+<div class="eyebrow">03 — Hardware</div>
+<h2>Owned iron, no cloud rental</h2>
+<p>Everything runs over a private Tailscale mesh — no cloud GPU rental, no per-token API costs.</p>
+<div class="hw-grid">
+  <div class="hw-card">
+    <div class="name">HP Z8 G4</div>
+    <div class="role">Dev &amp; orchestration</div>
+    <div class="spec"><b>2×</b> Tesla V100 32GB<br>+ 1 K2200 (unused, too old)</div>
+  </div>
+  <div class="hw-card">
+    <div class="name">Dell C4130</div>
+    <div class="role">Production node</div>
+    <div class="spec"><b>4×</b> Tesla V100 32GB<br>shared with live production workers</div>
+  </div>
+  <div class="hw-card">
+    <div class="name">gx10 (ARM)</div>
+    <div class="role">Borrowed shard</div>
+    <div class="spec">aarch64, NVIDIA GB10<br>unified memory</div>
+  </div>
+  <div class="hw-card">
+    <div class="name">Edge VPS</div>
+    <div class="role">Public entry point</div>
+    <div class="spec">nginx + TLS, wildcard DNS<br>Tailscale reverse proxy</div>
+  </div>
+</div>
+<p class="gotcha">A 4×P100 node sits on the same network, never brought into service — its management interface is locked out, and fixing that was never worth it against hardware already in use. Nothing here is exotic; the V100 is a 2017 GPU. What made the timelines short was reuse, not horsepower.</p>
+</section>
+
+<section id="technique">
+<div class="eyebrow">04 — Technique</div>
+<h2>ASR, diarization, search</h2>
+<p><strong>ASR</strong> — WhisperX (<code>large-v3</code>), GPU-batched. <strong>Diarization</strong> — pyannote.audio via its Python API directly, not WhisperX's CLI flag (see log 5.1). Convention: the diarized voice with the most total airtime in a recording is labeled as that person; every other voice stays an anonymous <code>SPEAKER_NN</code> — correct for single-uploader content without needing voice enrollment.</p>
+<p><strong>Search</strong> — BGE-M3 embeddings, FastAPI + SQLite + a flat <code>.npy</code> vector array — no vector database; the corpus is small enough that this is simply faster, with zero moving parts. <strong>RAG</strong> — a local llama.cpp instance, auto-discovered, with graceful degrade to search-only.</p>
+<p><strong>Distribution</strong> — HLS video/audio stream-copied (no re-encode), sharded <code>index % N</code> across every available host. 8-way sharding across 4 hosts took an estimated multi-week video backlog to about five days.</p>
+</section>
+
+<section id="log">
+<div class="eyebrow">05 — Incident log</div>
+<h2>What actually went wrong</h2>
+<p>Roughly chronological. Each cost somewhere between an annoying hour and half a day — except one, marked critical, which cost a live dataset for about twenty minutes before full recovery.</p>
+
+<div class="log">
+
+<div class="entry sev-note">
+  <div class="entry-head"><span class="entry-id">5.1</span><span class="tag resolved">resolved</span></div>
+  <h3>OData pagination silently truncated</h3>
+  <p><code>$top</code> caps the <em>total</em> result count across every page and suppresses <code>@odata.nextLink</code> in doing so — counts looked plausible until they didn't match reality. Omit it; follow server-side paging instead.</p>
+</div>
+
+<div class="entry sev-note">
+  <div class="entry-head"><span class="entry-id">5.2</span><span class="tag resolved">resolved</span></div>
+  <h3>YouTube rate-limit, zero warning</h3>
+  <p>A bulk channel pull without a throttle got the session rate-limited within minutes — no useful error, just zero further downloads. Fixed with <code>-t sleep</code> between requests; a large channel now takes hours instead of minutes, which beats zero.</p>
+</div>
+
+<div class="entry sev-note">
+  <div class="entry-head"><span class="entry-id">5.3</span><span class="tag resolved">resolved</span></div>
+  <h3>ffmpeg version drift across shards</h3>
+  <p>ffmpeg ≥7/8 rejects a CDN's <code>.m4v</code> HLS segments under a stricter default extension allowlist — one host misbehaved, the others didn't, until the version difference was spotted. Detect and pass <code>-allowed_extensions ALL -extension_picky 0</code> when supported.</p>
+</div>
+
+<div class="entry sev-note">
+  <div class="entry-head"><span class="entry-id">5.4</span><span class="tag near-miss">near-miss</span></div>
+  <h3>A silent 24-hour hang</h3>
+  <p>Two multi-hour debates caused ffmpeg to hang for 24+ hours on a half-closed CDN connection it never noticed. Because shards process dates sequentially, the hang <strong>silently blocked every later item behind it</strong> — a shard that looked "still running" had been dead for most of a day. Fixed with a read timeout plus a hard subprocess timeout.</p>
+  <div class="lesson"><div class="eyebrow">Lesson</div>"Still running" is not evidence of progress — check that output is still growing before trusting a long download.</div>
+</div>
+
+<div class="entry sev-note">
+  <div class="entry-head"><span class="entry-id">5.5</span><span class="tag near-miss">near-miss</span></div>
+  <h3>Orphaned children, one live data race</h3>
+  <p>Killing an orchestrator process doesn't kill its ffmpeg child — reparented to init, it keeps running. A restarted shard was found writing to the <strong>same output file</strong> as an orphan from the previous run. Fixed by reaping any reparented ffmpeg, on every host, before starting or restarting a shard.</p>
+</div>
+
+<div class="entry sev-note">
+  <div class="entry-head"><span class="entry-id">5.6</span><span class="tag near-miss">near-miss</span></div>
+  <h3>Eleven hours lost to a hung SSH launch</h3>
+  <p><code>ssh host 'nohup thing &amp;'</code> can hang the SSH session on inherited file descriptors even though the remote command started fine — nothing crashed, the orchestrator just sat there. Fix: launch inside an explicit subshell so the remote shell exits immediately, <code>ssh host '(nohup thing &amp;); exit 0'</code>.</p>
+</div>
+
+<div class="entry sev-note">
+  <div class="entry-head"><span class="entry-id">5.7</span><span class="tag near-miss">near-miss</span></div>
+  <h3>Stopped the wrong container — a live one</h3>
+  <p>Cleaning up a crashed test container (already self-removed), a cleanup command filtered by <em>image</em> rather than exact name — and stopped the live production instance sharing that image, three days into uptime. Caught within seconds, restarted immediately.</p>
+  <div class="lesson"><div class="eyebrow">Lesson</div>On a host running both production and test workloads, target Docker operations by exact container name, never by image. Give test containers an explicit unique name.</div>
+</div>
+
+<div class="entry sev-note">
+  <div class="entry-head"><span class="entry-id">5.8</span><span class="tag near-miss">near-miss</span></div>
+  <h3>Fixed, confirmed, still broken</h3>
+  <p>A separate app's AI-answer feature failed with connection-refused. The first fix looked confirmed by an HTTP 200 — but that 200 carried <code>{"error": "..."}</code> in the body, missed because a truncated response glance landed on the wrong field. The real cause: a hardcoded environment override pointing at a port nothing had listened on since an earlier migration, silently shadowing working auto-discovery.</p>
+  <div class="lesson"><div class="eyebrow">Lesson</div>Parse the response payload's actual error field before calling anything fixed. A status code proves nothing for an endpoint that can return 200 with an error body.</div>
+</div>
+
+<div class="entry sev-note">
+  <div class="entry-head"><span class="entry-id">5.9</span><span class="tag resolved">resolved</span></div>
+  <h3>Config on disk, config in memory — disagreed</h3>
+  <p>A reverse-proxy file on disk pointed at the wrong backend entirely, while the <em>running</em> process still had the old, correct value loaded from before a never-reloaded edit. It worked by accident; the next routine reload would have broken it silently. Found by diffing the file against nginx's actual in-memory config.</p>
+</div>
+
+<div class="entry sev-note">
+  <div class="entry-head"><span class="entry-id">5.10</span><span class="tag resolved">resolved</span></div>
+  <h3>New GPU work failed, old work didn't</h3>
+  <p>An unattended package upgrade bumped the userspace NVIDIA driver without reloading the kernel module — already-running GPU contexts survived, nothing new could be created. Fixed with a full reboot after confirming every production service would auto-recover.</p>
+  <div class="lesson"><div class="eyebrow">Lesson</div>"Fails for new things, old things still work" is the specific signature of a driver/userspace mismatch — don't chase permissions or networking theories first.</div>
+</div>
+
+<div class="entry sev-critical">
+  <div class="entry-head"><span class="entry-id">5.11</span><span class="tag critical">critical</span></div>
+  <h3>A rebuild wiped a live dataset to one entry</h3>
+  <p>An index-rebuild script does a full rebuild from source transcripts every time, by design. Testing it revealed — too late — that the source transcripts for <strong>2,519 of 2,523 archived videos no longer existed anywhere</strong> on the serving host; only the compiled index and raw video had survived. The rebuild found one new test file and the live index dropped from 2,523 videos to 1, instantly and publicly, with nothing in the surrounding tooling expecting a rebuild to be destructive.</p>
+  <p>No backup existed on the serving host, in git, or in any snapshot. A deliberately widened search across every other host on the network turned up a complete, undocumented copy on a third machine, found by chance because the search didn't stop at the obvious places. Restored within the hour, verified with a real content query this time.</p>
+  <div class="lesson"><div class="eyebrow">The lesson of this whole project</div>A destructive step should never be reachable without a backup existing first. Every rebuild now backs up the current index before overwriting it, unconditionally, inside the tool itself — not a step someone has to remember. A daily job separately mirrors the actual source transcripts, wired into both crash-recovery and an independent cron entry.</div>
+</div>
+
+<div class="entry sev-note">
+  <div class="entry-head"><span class="entry-id">5.12</span><span class="tag resolved">resolved</span></div>
+  <h3>Mistook a live stream for an archive</h3>
+  <p>New content from Abo Ali's current output was assumed to be VOD, matching the historical YouTube pattern. It's a continuous 24/7 live stream — confirmed when the HLS manifest's internal naming read literally <code>live40_...</code>, and a fluctuating live bitrate broke a first extraction attempt that had hardcoded one manifest's bandwidth value. Recording a live stream needs a scheduled capture window, not an incremental sync — and the correct window came directly from asking, since nothing in any log documented it.</p>
+</div>
+
+<div class="entry sev-note">
+  <div class="entry-head"><span class="entry-id">5.13</span><span class="tag near-miss">near-miss</span></div>
+  <h3>Right data, wrong name on screen</h3>
+  <p>Two live instances share one frontend, told apart only by a backend config value. The backend was correctly person-aware from day one — but the static page had the first politician's name hardcoded into the title, hero text, and body copy, so the second instance served correct results under the wrong name and photo. Initial verification checked only the API response, never the rendered page.</p>
+  <div class="lesson"><div class="eyebrow">Lesson</div>Verifying the data layer is not verifying the user-facing output. When deployments share a frontend, check the actually-rendered page for each one, not just its API.</div>
+</div>
+
+<div class="entry sev-note">
+  <div class="entry-head"><span class="entry-id">5.14</span><span class="tag resolved">resolved</span></div>
+  <h3>A "bug" that was a real, permanent gap</h3>
+  <p>A distributed run reported all shards complete, but seven expected files were missing with no error logged anywhere. The instinct was a sharding bug. The actual cause, confirmed against the source agenda API directly: those sessions were held in committee rooms, which the video source doesn't cover — the script correctly produced no output at all for a day matching nothing, indistinguishable from a silent bug unless you check the source directly.</p>
+  <div class="lesson"><div class="eyebrow">Lesson</div>Before assuming your own code is broken, check what the source data actually contains for the specific cases that are missing.</div>
+</div>
+
+</div>
+</section>
+
+<section id="worked">
+<div class="eyebrow">06 — What worked</div>
+<h2>Reuse, not horsepower</h2>
+<p>The distinguishing factor across this whole build was reuse of prior, hard-won work over reinventing it:</p>
+<p>A near-identical diarization implementation already existed in the sibling project, proven at scale months earlier. The first attempt ignored it and used a different, broken-on-this-hardware library path — reverting to the proven pattern fixed it immediately, zero further debugging.</p>
+<p>The shared-transcript-pool architecture meant the second politician's onboarding reused the majority of already-downloaded data outright — measured directly: <strong>62% of relevant debate transcripts</strong> and <strong>30% of relevant debate video</strong> needed zero new work. Every download step is idempotent and resumable by design; a crash never loses partial progress. Docker images and model caches validated on one host were copied wholesale to a second rather than re-derived, avoiding a repeat of dependency-version debugging in a new environment.</p>
+</section>
+
+<div class="closing">
+<p>The pattern underneath all of it, wins and incidents alike: <strong>check whether the problem in front of you has already been solved somewhere in the same family of projects before treating it as new.</strong></p>
+<p>And: <strong>never let a destructive operation run without a backup existing first, as a property of the tool, not a step someone has to remember.</strong></p>
+</div>
+
+</div>
+
+<footer>slimme-archief-zoeker / abo-ali-search — internal field report — 2026-07-25</footer>
+</article>
+</body>
+</html>
