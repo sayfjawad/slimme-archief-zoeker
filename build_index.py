@@ -211,8 +211,10 @@ def main():
     db.commit()
     print(f"parsed {n_videos} videos -> {chunk_id} chunks", flush=True)
 
-    print("pass 2: embedding on GPU...", flush=True)
-    embedder = Embedder(device="cuda:0")
+    import torch
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    print(f"pass 2: embedding on {device}...", flush=True)
+    embedder = Embedder(device=device)
     tok = embedder.tokenizer
 
     lengths = [len(t) for t in all_texts]

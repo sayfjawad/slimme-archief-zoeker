@@ -1,0 +1,12 @@
+# Enough to run quickstart.sh, build_index.py and the search app (app.py)
+# against the transcripts already checked into archive-data/.
+fastapi
+uvicorn
+torch
+transformers
+numpy
+
+# The full pipeline (tk_sync.py, ob_sync.py, yt_sync.py, dg_sync.py,
+# transcribe_batch.py) needs more: yt-dlp, whisperx, pyannote.audio, pandas,
+# and the ffmpeg binary on PATH -- not required just to search the archive
+# that's already checked in.

@@ -4,3 +4,4 @@ index/
 .venv/
 stats.sqlite
 hosts.env
+local-data/

@@ -24,7 +24,10 @@ SHARED_DIR = Path(os.environ.get("SHARED_DIR", "/data/SHARED"))
 def load_config(slug: str | None = None) -> dict:
     slug = slug or os.environ.get("PERSON", "wilders")
     cfg = json.loads((CONFIG_DIR / f"{slug}.json").read_text(encoding="utf-8"))
-    data_dir = Path(cfg["data_dir"])
+    # DATA_DIR overrides the config file's own (production) data_dir --
+    # lets a fresh checkout point at a local, writable directory (see
+    # quickstart.sh) without editing the tracked config file.
+    data_dir = Path(os.environ.get("DATA_DIR", cfg["data_dir"]))
     cfg["_paths"] = {
         "data": data_dir,
         "shared": SHARED_DIR,

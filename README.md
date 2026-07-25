@@ -24,6 +24,39 @@ speaker, source link and a play button that jumps to the exact moment. An
 optional local LLM writes a summary with verifiable citations (RAG). No cloud
 APIs anywhere: embeddings, ASR and the LLM all run on own GPUs.
 
+## Quickstart from the checked-in archive
+
+The actual transcripts — the expensive part, real transcription/diarization
+work — are committed to this repo under `archive-data/` (see
+`archive-data/README.md`). That means you can get a working, searchable app
+running **without** downloading anything from the Tweede Kamer, YouTube, or
+running whisperx/pyannote at all:
+
+```bash
+git clone https://github.com/sayfjawad/slimme-archief-zoeker
+cd slimme-archief-zoeker
+pip install -r requirements.txt   # or: fastapi uvicorn torch transformers numpy
+
+./quickstart.sh wilders            # or: yesilgoz
+# builds local-data/wilders/index/ from archive-data/, using a GPU if one's
+# visible to torch, otherwise CPU (slower, still works)
+
+SHARED_DIR="$PWD/local-data/SHARED" DATA_DIR="$PWD/local-data/wilders" \
+  PERSON=wilders python3 -m uvicorn app:app --port 8000
+```
+
+Open `http://localhost:8000` — search and the AI summary work fully; local
+audio/video playback doesn't, since the raw media files (large, and not
+everyone's to redistribute) aren't checked in, only the transcripts derived
+from them. Every result still links out to its original source (YouTube,
+the Tweede Kamer's own site) instead.
+
+`quickstart.sh` is also the fastest way to recover a *production* index if
+one is ever lost or corrupted (`build_index.py <slug>` alone does the same
+thing against whatever's already in the real data directories) — this is
+exactly how abo-ali-search's live index was restored after the incident
+documented in `docs/postmortem.md`.
+
 ## Sources
 
 1. **Tweede Kamer verslagen** (official, corrected transcripts, 2013–now) via
