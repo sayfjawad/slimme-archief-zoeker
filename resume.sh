@@ -13,11 +13,17 @@ export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 echo "=== resume $(date '+%F %T')"
 ./backup_daily.sh
 
-# slug:systemd-unit -- add a line here when a new person gets their own app
-PERSONS="
-wilders:wilders-search
-yesilgoz:yesilgoz-search
-"
+# slug:systemd-unit for every tracked politician -- derived from
+# config/<slug>.json, not a maintained list, so a newly onboarded politician
+# (config file + a <slug>-search systemd unit, the standing naming
+# convention) is picked up automatically with no edit needed here.
+PERSONS=""
+for cfg in config/*.json; do
+  [ -e "$cfg" ] || continue
+  slug=$(basename "$cfg" .json)
+  PERSONS="$PERSONS
+$slug:$slug-search"
+done
 
 start_if_absent() {  # <pgrep-pattern> <command...>
   local pattern=$1; shift

@@ -24,7 +24,9 @@ else
   rsync -a "$SHARED/" "$DEST/shared/"
   echo "  shared pool: $(ls "$DEST/shared" | wc -l) bestanden"
 
-  for slug in wilders yesilgoz; do
+  for cfg in config/*.json; do
+    [ -e "$cfg" ] || continue
+    slug=$(basename "$cfg" .json)
     DATA=$(PERSON=$slug python3 -c 'from pipeline_config import load_config; print(load_config()["_paths"]["data"])')
     [ -d "$DATA" ] || continue
     mkdir -p "$DEST/$slug"
