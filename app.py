@@ -31,6 +31,7 @@ INDEX_DIR = CFG["_paths"]["index"]
 MEDIA_DIR = CFG["_paths"]["youtube"]
 DG_DIR = CFG["_paths"]["debatgemist"]
 PERSON = CFG["person"]
+PERSON_SLUG = CFG["slug"]
 PERSON_MATCH = CFG["tk"]["match"]["achternaam"]
 STATS_DB = BASE / "stats.sqlite"  # outside index/ so re-indexing keeps history
 
@@ -80,10 +81,18 @@ def load_index():
 
 
 # ------------------------------------------------------------- usage tracking
+# NOTE: wilders-search and yesilgoz-search (and any future person) run from
+# this SAME checkout with different PERSON env vars, so STATS_DB is one
+# shared file on disk. Every row is tagged with `person` (the config slug)
+# so each instance's /api/statistics only ever aggregates its own traffic.
 def _stats_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(STATS_DB, timeout=10)
     conn.execute("""CREATE TABLE IF NOT EXISTS queries (
-        ts TEXT DEFAULT (datetime('now')), mode TEXT, ip TEXT, query TEXT)""")
+        ts TEXT DEFAULT (datetime('now')), mode TEXT, ip TEXT, query TEXT, person TEXT)""")
+    try:  # upgrade path for pre-existing stats.sqlite files without this column
+        conn.execute("ALTER TABLE queries ADD COLUMN person TEXT")
+    except sqlite3.OperationalError:
+        pass
     return conn
 
 
@@ -99,11 +108,42 @@ def log_query(request: Request, mode: str, query: str):
     try:
         with _stats_conn() as conn:
             conn.execute(
-                "INSERT INTO queries (mode, ip, query) VALUES (?,?,?)",
-                (mode, client_ip(request), query[:500]),
+                "INSERT INTO queries (mode, ip, query, person) VALUES (?,?,?,?)",
+                (mode, client_ip(request), query[:500], PERSON_SLUG),
             )
     except Exception as e:  # stats must never break search
         print(f"stats logging failed: {e}")
+
+
+@app.get("/api/statistics")
+def api_statistics():
+    with _stats_conn() as conn:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM queries WHERE person=?", (PERSON_SLUG,)).fetchone()[0]
+        by_mode = dict(conn.execute(
+            "SELECT mode, COUNT(*) FROM queries WHERE person=? GROUP BY mode", (PERSON_SLUG,)).fetchall())
+        unique_ips = conn.execute(
+            "SELECT COUNT(DISTINCT ip) FROM queries WHERE person=?", (PERSON_SLUG,)).fetchone()[0]
+        today = conn.execute(
+            "SELECT COUNT(*), COUNT(DISTINCT ip) FROM queries WHERE person=? AND date(ts) = date('now')",
+            (PERSON_SLUG,)).fetchone()
+        per_day = conn.execute("""
+            SELECT date(ts) d, COUNT(*), COUNT(DISTINCT ip)
+            FROM queries WHERE person=? AND ts >= datetime('now','-30 days')
+            GROUP BY d ORDER BY d""", (PERSON_SLUG,)).fetchall()
+        first = conn.execute(
+            "SELECT MIN(date(ts)) FROM queries WHERE person=?", (PERSON_SLUG,)).fetchone()[0]
+    return {
+        "person": PERSON,
+        "total_queries": total,
+        "search_queries": by_mode.get("search", 0),
+        "ask_queries": by_mode.get("ask", 0),
+        "unique_ips": unique_ips,
+        "today_queries": today[0],
+        "today_unique_ips": today[1],
+        "since": first,
+        "per_day": [{"date": d, "queries": q, "unique_ips": u} for d, q, u in per_day],
+    }
 
 
 # ------------------------------------------------------------------ retrieval

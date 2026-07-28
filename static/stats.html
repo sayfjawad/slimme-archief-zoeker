@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="nl" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statistieken</title>
+<style>
+:root{
+  --bg:#f4f5f7; --panel:#ffffff; --ink:#1e2430; --muted:#68707f;
+  --accent:#1d4ed8; --accent-soft:#e5edfb; --border:#dde1e8;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#14161a; --panel:#1e2128; --ink:#e8eaef; --muted:#9aa2b1;
+        --accent:#60a5fa; --accent-soft:#1d2c4a; --border:#343945;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Segoe UI",system-ui,sans-serif;line-height:1.7}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 70px}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+a.back{color:var(--accent);text-decoration:none;font-size:.9rem}
+#lang-toggle{background:transparent;color:var(--accent);border:1px solid var(--accent);
+  border-radius:20px;padding:5px 14px;font-size:.82rem;cursor:pointer}
+h1{font-size:1.4rem;margin:10px 0 2px}
+.muted{color:var(--muted);font-size:.88rem}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:22px 0}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.card .num{font-size:1.8rem;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.card .lbl{color:var(--muted);font-size:.82rem}
+
+h2{font-size:1.05rem;margin:30px 0 4px}
+.chart-wrap{background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  padding:16px 14px 8px;margin-top:10px;position:relative}
+#chart{width:100%;height:180px;display:block;overflow:visible}
+.bar{fill:var(--accent);cursor:pointer}
+.bar:hover{fill:color-mix(in srgb, var(--accent) 80%, #000)}
+.axis-line{stroke:var(--border);stroke-width:1}
+.tick-label{fill:var(--muted);font-size:9px;font-family:inherit}
+#tooltip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);
+  font-size:.78rem;padding:4px 8px;border-radius:6px;white-space:nowrap;display:none;
+  transform:translate(-50%,-115%);z-index:5}
+.chart-empty{color:var(--muted);font-size:.85rem;text-align:center;padding:50px 0}
+
+table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:12px;
+  overflow:hidden;margin-top:10px}
+th,td{padding:8px 12px;border-bottom:1px solid var(--border);text-align:start;
+  font-variant-numeric:tabular-nums;font-size:.9rem}
+th{background:var(--accent-soft);font-size:.8rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a class="back" href="/" data-i18n="back">&larr; Terug naar zoeken</a>
+    <button id="lang-toggle">English</button>
+  </div>
+  <h1 data-i18n="title">Gebruiksstatistieken</h1>
+  <div class="muted" id="since"></div>
+
+  <div class="cards">
+    <div class="card"><div class="num" id="total">…</div><div class="lbl" data-i18n="lblTotal">Totaal zoekopdrachten</div></div>
+    <div class="card"><div class="num" id="ips">…</div><div class="lbl" data-i18n="lblIps">Unieke IP-adressen</div></div>
+    <div class="card"><div class="num" id="search">…</div><div class="lbl" data-i18n="lblSearch">🔍 Alleen zoeken</div></div>
+    <div class="card"><div class="num" id="ask">…</div><div class="lbl" data-i18n="lblAsk">🤖 Vraag de AI</div></div>
+    <div class="card"><div class="num" id="today">…</div><div class="lbl" data-i18n="lblToday">Vandaag</div></div>
+    <div class="card"><div class="num" id="today-ips">…</div><div class="lbl" data-i18n="lblTodayIps">Bezoekers vandaag</div></div>
+  </div>
+
+  <h2 data-i18n="chartTitle">Laatste 30 dagen</h2>
+  <div class="chart-wrap">
+    <svg id="chart" preserveAspectRatio="none"></svg>
+    <div id="tooltip"></div>
+  </div>
+
+  <h2 data-i18n="tableTitle">Per dag</h2>
+  <table>
+    <thead><tr>
+      <th data-i18n="thDay">Datum</th><th data-i18n="thQueries">Zoekopdrachten</th><th data-i18n="thIps">Unieke IP's</th>
+    </tr></thead>
+    <tbody id="days"></tbody>
+  </table>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const I18N = {
+  nl: {
+    back:'← Terug naar zoeken', title:'Gebruiksstatistieken',
+    lblTotal:'Totaal zoekopdrachten', lblIps:'Unieke IP-adressen',
+    lblSearch:'🔍 Alleen zoeken', lblAsk:'🤖 Vraag de AI',
+    lblToday:'Vandaag', lblTodayIps:'Bezoekers vandaag',
+    chartTitle:'Laatste 30 dagen', tableTitle:'Per dag',
+    thDay:'Datum', thQueries:'Zoekopdrachten', thIps:"Unieke IP's",
+    since:d=>d?`Bijgehouden sinds ${d}`:'Nog geen gebruiksdata',
+    noData:'Geen activiteit in deze periode.', langBtn:'English',
+  },
+  en: {
+    back:'← Back to search', title:'Usage statistics',
+    lblTotal:'Total queries', lblIps:'Unique IP addresses',
+    lblSearch:'🔍 Search only', lblAsk:'🤖 Ask the AI',
+    lblToday:'Today', lblTodayIps:"Today's visitors",
+    chartTitle:'Last 30 days', tableTitle:'By day',
+    thDay:'Date', thQueries:'Queries', thIps:'Unique IPs',
+    since:d=>d?`Tracked since ${d}`:'No usage data yet',
+    noData:'No activity in this period.', langBtn:'Nederlands',
+  }
+};
+let lang = new URLSearchParams(location.search).get('lang') || localStorage.getItem('lang') || 'nl';
+if(!I18N[lang]) lang = 'nl';
+const t = k => I18N[lang][k];
+let data = null;
+
+function applyLang(){
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = t(el.dataset.i18n); });
+  $('#lang-toggle').textContent = t('langBtn');
+  document.title = `${t('title')} — ${(data && data.person) || ''}`.trim();
+  $('#since').textContent = t('since')(data && data.since);
+  if(data) renderTable();
+}
+$('#lang-toggle').onclick = ()=>{ lang = lang==='nl'?'en':'nl'; localStorage.setItem('lang',lang); applyLang(); };
+
+function renderTable(){
+  const tb = $('#days');
+  tb.innerHTML = '';
+  const rows = (data.per_day||[]).slice().reverse();  // most recent first
+  for(const r of rows){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.date}</td><td>${r.queries.toLocaleString()}</td><td>${r.unique_ips.toLocaleString()}</td>`;
+    tb.appendChild(tr);
+  }
+  if(!rows.length){
+    tb.innerHTML = `<tr><td colspan="3" class="muted">${t('noData')}</td></tr>`;
+  }
+}
+
+function renderChart(){
+  const svg = $('#chart');
+  const days = data.per_day || [];
+  if(!days.length){
+    svg.style.height = '0';
+    svg.parentElement.insertAdjacentHTML('beforeend', `<div class="chart-empty">${t('noData')}</div>`);
+    return;
+  }
+  const W = svg.parentElement.clientWidth - 28, H = 170;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const max = Math.max(1, ...days.map(d=>d.queries));
+  const gap = 3, n = days.length, bw = Math.max(2, W / n - gap);
+  const baseline = H - 16;
+  let svgHtml = `<line class="axis-line" x1="0" y1="${baseline}" x2="${W}" y2="${baseline}"/>`;
+  days.forEach((d, i)=>{
+    const h = Math.max(1, (d.queries / max) * (baseline - 6));
+    const x = i * (bw + gap);
+    const y = baseline - h;
+    svgHtml += `<rect class="bar" x="${x}" y="${y}" width="${bw}" height="${h}" rx="2"
+      data-date="${d.date}" data-q="${d.queries}" data-ips="${d.unique_ips}"></rect>`;
+    if(i===0 || i===days.length-1 || i===Math.floor(days.length/2)){
+      svgHtml += `<text class="tick-label" x="${x}" y="${H-2}">${d.date.slice(5)}</text>`;
+    }
+  });
+  svg.innerHTML = svgHtml;
+  const tip = $('#tooltip');
+  svg.querySelectorAll('.bar').forEach(bar=>{
+    bar.addEventListener('mouseenter', e=>{
+      const r = svg.getBoundingClientRect();
+      const br = bar.getBoundingClientRect();
+      tip.style.display = 'block';
+      tip.style.left = (br.left - r.left + br.width/2) + 'px';
+      tip.style.top = (br.top - r.top) + 'px';
+      tip.textContent = `${bar.dataset.date}: ${bar.dataset.q} · ${bar.dataset.ips} IP`;
+    });
+    bar.addEventListener('mouseleave', ()=>{ tip.style.display='none'; });
+  });
+}
+
+fetch('/api/statistics').then(r=>r.json()).then(d=>{
+  data = d;
+  const set=(id,v)=>document.getElementById(id).textContent=(v??0).toLocaleString();
+  set('total', d.total_queries); set('ips', d.unique_ips);
+  set('search', d.search_queries); set('ask', d.ask_queries);
+  set('today', d.today_queries); set('today-ips', d.today_unique_ips);
+  applyLang();
+  renderChart();
+}).catch(()=>{ applyLang(); });
+
+applyLang();
+window.addEventListener('resize', ()=>{ if(data){ $('#chart').innerHTML=''; renderChart(); } });
+</script>
+</body>
+</html>
