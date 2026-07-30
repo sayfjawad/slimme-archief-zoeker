@@ -142,7 +142,9 @@ def download_debate(master_url: str, dest: Path) -> bool:
     if audio_url:
         cmd += [*HLS_OPTS, *rw, "-i", audio_url]
         maps += ["-map", "1:a"]
-    cmd += maps + ["-c", "copy", str(tmp)]
+    # +faststart: moov atom up front so playback/seeking starts without
+    # fetching the whole (often 1-2GB) file first — see fix_faststart.py.
+    cmd += maps + ["-c", "copy", "-movflags", "+faststart", str(tmp)]
     try:
         rc = subprocess.run(cmd, timeout=PROC_TIMEOUT_S).returncode
     except subprocess.TimeoutExpired:
