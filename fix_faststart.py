@@ -15,7 +15,10 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-import pipeline_config as pc
+try:
+    import pipeline_config as pc
+except ImportError:
+    pc = None
 
 
 def is_faststart(path: Path) -> bool:
@@ -77,7 +80,12 @@ def main():
         workers = int(args[1])
         args = args[2:]
 
-    dirs = [Path(a) for a in args] or [pc.load_config()["_paths"]["debatgemist"]]
+    if args:
+        dirs = [Path(a) for a in args]
+    elif pc:
+        dirs = [pc.load_config()["_paths"]["debatgemist"]]
+    else:
+        sys.exit("usage: fix_faststart.py [--jobs N] <directory ...>")
     files = sorted(f for d in dirs for f in Path(d).glob("*.mp4"))
     print(f"{len(files)} mp4 files to check ({workers} parallel)")
 
