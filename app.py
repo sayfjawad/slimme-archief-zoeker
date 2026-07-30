@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -357,8 +357,58 @@ def api_stats():
 
 
 # ---------------------------------------------------------------------- media
+RANGE_CHUNK_SIZE = 1024 * 1024  # 1 MB
+
+
+def _ranged_response(path: Path, media_type: str, request: Request) -> StreamingResponse:
+    """Serve `path` honoring an incoming Range header. Debate recordings run
+    for hours; without real 206/Content-Range support the <video> element
+    can't seek at all -- Chrome silently clamps any currentTime jump back
+    to 0 and the whole file has to be fetched just to reach frame 1."""
+    file_size = path.stat().st_size
+    start, end = 0, file_size - 1
+    status_code = 200
+
+    range_header = request.headers.get("range")
+    if range_header:
+        try:
+            _, rng = range_header.split("=", 1)
+            start_s, end_s = rng.split("-", 1)
+            if start_s:
+                start = int(start_s)
+            if end_s:
+                end = int(end_s)
+        except ValueError:
+            raise HTTPException(416, "invalid range header")
+        if start > end or start >= file_size:
+            raise HTTPException(416, "invalid range",
+                                 headers={"Content-Range": f"bytes */{file_size}"})
+        end = min(end, file_size - 1)
+        status_code = 206
+
+    length = end - start + 1
+
+    def iterfile():
+        with open(path, "rb") as f:
+            f.seek(start)
+            remaining = length
+            while remaining > 0:
+                chunk = f.read(min(RANGE_CHUNK_SIZE, remaining))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+                yield chunk
+
+    headers = {"Accept-Ranges": "bytes", "Content-Length": str(length)}
+    if status_code == 206:
+        headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+
+    return StreamingResponse(iterfile(), status_code=status_code,
+                              media_type=media_type, headers=headers)
+
+
 @app.get("/media/{filename}")
-def media(filename: str):
+def media(filename: str, request: Request):
     # prevent path traversal
     safe = os.path.basename(filename)
     if safe != filename:
@@ -372,7 +422,7 @@ def media(filename: str):
                 mt = "video/mp4"
             else:
                 mt = "audio/mp4"
-            return FileResponse(path, media_type=mt)
+            return _ranged_response(path, mt, request)
     raise HTTPException(404, "not found")
 
 
