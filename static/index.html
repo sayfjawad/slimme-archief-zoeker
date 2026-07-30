@@ -103,6 +103,7 @@ tr.cited td{border-inline-start:3px solid var(--accent)}
   box-shadow:0 -6px 24px rgba(0,0,0,.25)}
 #player-box .row{display:flex;gap:14px;align-items:center;max-width:1100px;margin:0 auto}
 #player{max-width:390px;width:390px;max-height:220px;border-radius:8px;background:#000}
+#player-audio{width:320px;max-width:100%}
 #player-info{flex:1;font-size:.85rem;color:var(--muted)}
 #player-close{background:transparent;color:var(--muted);font-size:1.4rem;padding:4px 10px;border:0}
 </style>
@@ -197,6 +198,7 @@ tr.cited td{border-inline-start:3px solid var(--accent)}
 <div id="player-box">
   <div class="row">
     <video id="player" controls preload="none"></video>
+    <audio id="player-audio" controls preload="none" style="display:none"></audio>
     <div id="player-info"></div>
     <button id="player-close" title="✕">✕</button>
   </div>
@@ -226,7 +228,7 @@ const I18N = {
     errNoLLM:'⚠️ Geen lokale LLM-server gevonden (stel LLM_BASE_URL in). Hieronder de zoekresultaten.',
     errAnswer:'⚠️ Fout bij het genereren van het antwoord: ',
     errGeneric:'⚠️ Fout: ',
-    play:'▶ Afspelen', startsAt:'begint bij', srcLink:'Bron',
+    play:'▶ Afspelen', playAudio:'🎧 Afspelen (alleen audio)', startsAt:'begint bij', srcLink:'Bron',
     srcTK:'Kamerverslag', srcASR:'video (ASR)',
     badge:(v,c)=>`${v} bronnen · ${c} fragmenten`,
     langBtn:'English'
@@ -250,7 +252,7 @@ const I18N = {
     errNoLLM:'⚠️ No local LLM server found (set LLM_BASE_URL). Semantic search results are shown below.',
     errAnswer:'⚠️ Error generating the answer: ',
     errGeneric:'⚠️ Error: ',
-    play:'▶ Play', startsAt:'starts at', srcLink:'Source',
+    play:'▶ Play', playAudio:'🎧 Play (audio only)', startsAt:'starts at', srcLink:'Source',
     srcTK:'official record', srcASR:'video (ASR)',
     badge:(v,c)=>`${v} sources · ${c} fragments`,
     langBtn:'Nederlands'
@@ -392,7 +394,7 @@ function drawRows(){
       <td class="txt"><div class="spk">${esc(r.speaker||'')}<span class="src-tag">${srcTag}</span></div>
         ${highlight(r.text, lastQuery)}
         <div class="btns">
-          ${r.media_url?`<button onclick="playLocal(${i})">${t('play')}</button>`:''}
+          ${r.media_url?`<button onclick="playLocal(${i})">${isAudioOnly(r)?t('playAudio'):t('play')}</button>`:''}
           ${r.youtube_url?`<a class="yt" href="${r.youtube_url}" target="_blank" rel="noopener">YouTube ↗</a>`:''}
           ${r.source_url?`<a class="src" href="${r.source_url}" target="_blank" rel="noopener">${t('srcLink')} ↗</a>`:''}
         </div>
@@ -423,9 +425,16 @@ function scrollToRow(n){
     setTimeout(()=>el.style.background='',1600); }
 }
 
+function isAudioOnly(r){ return /\.opus$/i.test(r.media_file||''); }
+
 function playLocal(i){
   const r = lastResults[i];
-  const p = $('#player');
+  const audioOnly = isAudioOnly(r);
+  const p = $(audioOnly ? '#player-audio' : '#player');
+  const other = $(audioOnly ? '#player' : '#player-audio');
+  other.pause(); other.removeAttribute('src'); other.load();
+  other.style.display = 'none';
+  p.style.display = '';
   p.src = '/media/'+r.media_file;
   $('#player-info').innerHTML = `<b>${esc(r.title)}</b><br>${r.date} — ${t('startsAt')} ${r.start_fmt}`;
   $('#player-box').style.display='block';
@@ -433,9 +442,11 @@ function playLocal(i){
   p.load();
 }
 function stopPlayer(){
-  const p = $('#player');
-  p.pause();
-  p.removeAttribute('src'); p.load();   // stop buffering/downloading too
+  for(const sel of ['#player','#player-audio']){
+    const p = $(sel);
+    p.pause();
+    p.removeAttribute('src'); p.load();   // stop buffering/downloading too
+  }
   $('#player-box').style.display='none';
 }
 $('#player-close').onclick = stopPlayer;
