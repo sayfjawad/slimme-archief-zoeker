@@ -124,20 +124,26 @@ def main():
     state_path = paths["ob_state"]
     state = json.loads(state_path.read_text()) if state_path.exists() else {}
 
+    # Snapshot both directories once: ob/ and the shared transcript pool live
+    # on NFS, and thousands of tracked documents means a per-item exists()
+    # check would mean thousands of round-trips every run.
+    existing_xml = {p.stem for p in xml_dir.glob("*.xml")}
+    already_parsed = {p.name[: -len(".metadata.json")] for p in paths["shared_transcripts"].glob("ob_*.metadata.json")}
+
     # Output goes to the SHARED transcript pool: parse_document() keeps every
     # speaker in the document, not just this config's person, so a document
     # already parsed (by this or any other tracked person's run) is reused
     # as-is -- same Handeling, same content, no need to redo the work.
     written = skipped = reused = 0
     for ident, info in sorted(state.items()):
-        xml_path = xml_dir / f"{ident}.xml"
-        if not xml_path.exists():
+        if ident not in existing_xml:
             continue
         date = (info.get("date") or "").replace("-", "")
         base = f"ob_{date or 'nodate'}_{ident}"
-        if (paths["shared_transcripts"] / f"{base}.metadata.json").exists():
+        if base in already_parsed:
             reused += 1
             continue
+        xml_path = xml_dir / f"{ident}.xml"
         try:
             segments = parse_document(xml_path, match_naam)
         except ET.ParseError as e:
