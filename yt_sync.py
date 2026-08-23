@@ -14,7 +14,7 @@ from pipeline_config import load_config, ensure_dirs
 def sync_channel(channel: dict, out_dir, archive) -> int:
     url = channel["url"].rstrip("/") + "/videos"
     cmd = [
-        "yt-dlp",
+        sys.executable, "-m", "yt_dlp",
         "--no-update",
         "--ignore-errors",
         "-t", "sleep",  # delay between requests; without it YouTube rate-limits the session
