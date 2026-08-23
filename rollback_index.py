@@ -67,9 +67,8 @@ def main():
             print(f"restored {name} from {target}")
 
     import subprocess
-    unit = f"{slug}-search"
-    r = subprocess.run(["systemctl", "--user", "restart", unit], capture_output=True, text=True)
-    print(f"restart {unit}: {'OK' if r.returncode == 0 else 'FAILED: ' + r.stderr}")
+    r = subprocess.run(["./ship_index.sh", slug], capture_output=True, text=True)
+    print(f"ship+restart {slug}-search@c4130: {'OK' if r.returncode == 0 else 'FAILED: ' + r.stderr}")
 
 
 if __name__ == "__main__":

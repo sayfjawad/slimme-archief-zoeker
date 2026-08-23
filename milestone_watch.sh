@@ -24,10 +24,11 @@ EOF
 }
 
 restart_app() {
-  # app runs as a systemd --user service (survives reboots via linger)
-  systemctl --user restart wilders-search 2>/dev/null \
-    && log "app herstart via systemd (wilders-search.service)" \
-    || log "systemctl restart faalde"
+  # app now serves from c4130 (CPU-only); ship the index across and restart
+  # it there (the Z8 --user unit is gone -- see ship_index.sh)
+  ./ship_index.sh wilders \
+    && log "app herstart op c4130 (wilders-search.service)" \
+    || log "ship+restart faalde"
 }
 
 MODE=$1

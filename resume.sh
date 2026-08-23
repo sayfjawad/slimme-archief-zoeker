@@ -67,12 +67,13 @@ for spec in $PERSONS; do
     PERSON=$slug ./dg_distributed.sh
   fi
 
-  # 4. search app -- runs as a systemd --user service (auto-starts at boot
-  # via linger); this just makes sure it is up after a manual resume.
+  # 4. search app -- runs as a systemd SYSTEM service on c4130 (CPU-only);
+  # this just makes sure it is up after a manual resume.
   index_db="$(PERSON=$slug python3 -c 'from pipeline_config import load_config; print(load_config()["_paths"]["index"] / "index.sqlite")')"
   if [ -f "$index_db" ]; then
-    systemctl --user start "$unit" 2>/dev/null && echo "  app service ensured up ($unit)" \
-      || echo "  systemctl start $unit faalde"
+    ssh sayf@100.64.0.13 sudo systemctl start "$unit" 2>/dev/null \
+      && echo "  app service ensured up ($unit @c4130)" \
+      || echo "  ssh start $unit faalde (c4130 unreachable?)"
   else
     echo "  no index yet for $slug; app not started"
   fi

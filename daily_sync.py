@@ -163,12 +163,15 @@ def sync_person(slug: str) -> tuple[str, bool, int]:
                     f"rollback_index.py {slug} als de nieuwe build echt fout is."
                 )
             else:
-                unit = f"{slug}-search"
-                r = subprocess.run(["systemctl", "--user", "restart", unit], capture_output=True, text=True)
-                lines.append(f"[{'OK' if r.returncode == 0 else 'FAILED'}] restart {unit} "
+                # c4130 serves the index (CPU-only); ship the fresh index across
+                # and bounce its system service there. The Z8 --user unit is gone
+                # (moved to .moved-20260823) -- see ship_index.sh.
+                r = subprocess.run(["./ship_index.sh", slug], capture_output=True, text=True)
+                lines.append(f"[{'OK' if r.returncode == 0 else 'FAILED'}] ship+restart {slug}-search@c4130 "
                              f"({before_count} -> {after_count} video's)")
                 if r.returncode != 0:
                     any_fail = True
+                    lines.append(f"    {r.stderr.strip().splitlines()[-1] if r.stderr.strip() else ''}")
     else:
         lines.append("(no new content -> index not rebuilt)")
 
