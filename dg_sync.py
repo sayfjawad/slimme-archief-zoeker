@@ -127,6 +127,15 @@ STALL_TIMEOUT_US = 20_000_000   # 20s, per read
 PROC_TIMEOUT_S = 4 * 3600       # generous cap for the longest marathon debates
 
 
+class DownloadFailed(Exception):
+    """ffmpeg errored / timed out / stalled — retrying this debate won't help.
+
+    Distinct from "no footage" (no vodUrl / stub playlist), which is cheap to
+    re-check and may still gain footage later; a failed download is remembered
+    in debatgemist/failed.json and skipped on future runs.
+    """
+
+
 def download_debate(master_url: str, dest: Path) -> bool:
     streams = pick_streams(master_url)
     if not streams:
@@ -151,7 +160,7 @@ def download_debate(master_url: str, dest: Path) -> bool:
         rc = 1
     if rc != 0 or not tmp.exists():
         tmp.unlink(missing_ok=True)
-        return False
+        raise DownloadFailed
     tmp.rename(dest)
     return True
 
@@ -218,6 +227,12 @@ def main():
     have = set()
     if args.have:
         have = {ln.strip() for ln in Path(args.have).read_text().splitlines() if ln.strip()}
+    # failed downloads are remembered so the daily run doesn't keep re-attempting
+    # a debate whose CDN stream stalls (e.g. the ~9h APB "voortzetting" that
+    # collapses to ~31 KiB/s). Distinct from `state`/`have` which mean "already
+    # have it": a `failed` key has NO file, so it must not be served as footage.
+    failed_path = dg_dir / "failed.json"
+    failed = set(json.loads(failed_path.read_text())) if failed_path.exists() else set()
 
     print(f"{len(dates)} dates to check"
           + (f" (shard {args.shard})" if args.shard else ""), flush=True)
@@ -245,7 +260,7 @@ def main():
             # `key in state` covers files a remote worker downloaded that the
             # puller already drained; `have` covers files downloaded before
             # this worker's shard started
-            if dest.exists() or key in have or key in state:
+            if dest.exists() or key in have or key in state or key in failed:
                 n_skip += 1
                 continue
             try:
@@ -256,6 +271,12 @@ def main():
                     continue
                 master = windowed_master(vod, starts, ends)
                 ok = download_debate(master, dest)
+            except DownloadFailed:
+                failed.add(key)
+                failed_path.write_text(json.dumps(sorted(failed), indent=1, ensure_ascii=False), encoding="utf-8")
+                n_novideo += 1
+                print(f"  download failed (skipped next runs): {date_iso} {deb.get('name','')[:50]}", flush=True)
+                continue
             except Exception as e:
                 print(f"  {key}: {e}", file=sys.stderr)
                 continue
