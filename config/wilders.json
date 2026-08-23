@@ -25,7 +25,7 @@
     ]
   },
   "whisperx": {
-    "model": "large-v3",
+    "model": "small",
     "language": "nl",
     "device": "cuda",
     "batch_size": 16

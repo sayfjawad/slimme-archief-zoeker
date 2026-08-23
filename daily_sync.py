@@ -29,7 +29,7 @@ from pathlib import Path
 
 from pipeline_config import load_config
 
-VENV_PY = "/data/git/scrib-r/venv/bin/python3"  # proven torch/torchcodec/pyannote combo
+VENV_PY = sys.executable  # pipeline venv on this host (whisperx + pipeline deps)
 SHRINK_GUARD = 0.9  # refuse to go live if the new index has <90% of the old video count
 
 
@@ -72,10 +72,10 @@ def sync_person(slug: str) -> tuple[str, bool, int]:
     total_new = 0
 
     steps = [
-        ("tk_sync", ["python3", "tk_sync.py"], 1800),
-        ("tk_parse", ["python3", "tk_parse.py"], 900),
-        ("ob_sync", ["python3", "ob_sync.py"], 1800),
-        ("ob_parse", ["python3", "ob_parse.py"], 900),
+        ("tk_sync", [sys.executable, "tk_sync.py"], 1800),
+        ("tk_parse", [sys.executable, "tk_parse.py"], 900),
+        ("ob_sync", [sys.executable, "ob_sync.py"], 1800),
+        ("ob_parse", [sys.executable, "ob_parse.py"], 900),
     ]
     for name, cmd, timeout in steps:
         ok, last, dt, _ = run(cmd, env, timeout)
@@ -93,7 +93,7 @@ def sync_person(slug: str) -> tuple[str, bool, int]:
 
     # YouTube: yt_sync.py has no summary line, so measure the opus-file delta
     before_opus = count(p["youtube"], "*.opus")
-    ok, last, dt, tail = run(["python3", "yt_sync.py"], env, 3600)
+    ok, last, dt, tail = run([sys.executable, "yt_sync.py"], env, 3600)
     after_opus = count(p["youtube"], "*.opus")
     new_audio = after_opus - before_opus
     lines.append(f"[{'OK' if ok else 'FAILED'}] yt_sync ({dt:.0f}s): {new_audio} new audio file(s)")
@@ -122,7 +122,7 @@ def sync_person(slug: str) -> tuple[str, bool, int]:
     # child survived the kill -- subprocess.run only signals its direct
     # child -- and had to be cleaned up by hand). 5h gives headroom above
     # one marathon debate plus the rest of that day's smaller dates.
-    ok, last, dt, tail = run(["python3", "dg_sync.py", slug], env, 5 * 3600)
+    ok, last, dt, tail = run([sys.executable, "dg_sync.py", slug], env, 5 * 3600)
     lines.append(f"[{'OK' if ok else 'FAILED'}] dg_sync ({dt:.0f}s): {last}")
     if not ok:
         any_fail = True
@@ -142,7 +142,7 @@ def sync_person(slug: str) -> tuple[str, bool, int]:
         # on disk until we explicitly `systemctl restart` below. That restart
         # is the ONLY moment a bad rebuild could reach real traffic, so it's
         # the one place this script must refuse to proceed on its own.
-        ok, last, dt, tail = run(["python3", "build_index.py"], env, 3600)
+        ok, last, dt, tail = run([sys.executable, "build_index.py"], env, 3600)
         lines.append(f"[{'OK' if ok else 'FAILED'}] build_index ({dt:.0f}s): {last}")
         if not ok:
             any_fail = True
@@ -163,11 +163,11 @@ def sync_person(slug: str) -> tuple[str, bool, int]:
                     f"rollback_index.py {slug} als de nieuwe build echt fout is."
                 )
             else:
-                # c4130 serves the index (CPU-only); ship the fresh index across
-                # and bounce its system service there. The Z8 --user unit is gone
-                # (moved to .moved-20260823) -- see ship_index.sh.
+                # c4130 runs the full pipeline AND serves the index locally,
+                # so "shipping" is just restarting the local system service
+                # (see ship_index.sh -- formerly rsync'd Z8 -> c4130).
                 r = subprocess.run(["./ship_index.sh", slug], capture_output=True, text=True)
-                lines.append(f"[{'OK' if r.returncode == 0 else 'FAILED'}] ship+restart {slug}-search@c4130 "
+                lines.append(f"[{'OK' if r.returncode == 0 else 'FAILED'}] restart {slug}-search (lokaal) "
                              f"({before_count} -> {after_count} video's)")
                 if r.returncode != 0:
                     any_fail = True
