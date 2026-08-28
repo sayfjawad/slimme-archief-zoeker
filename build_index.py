@@ -278,10 +278,26 @@ def warm_cache_main():
     print(f"  stored {len(miss)} vectors to {cache_out}", flush=True)
 
 
+FLAG_VALUES = {"--shard", "--cache-out"}  # flags that take a following value
+
+
+def _positionals(argv: list[str]) -> list[str]:
+    out, skip = [], False
+    for a in argv:
+        if skip:
+            skip = False
+            continue
+        if a in FLAG_VALUES:
+            skip = True
+        elif not a.startswith("--"):
+            out.append(a)
+    return out
+
+
 def main():
     if "--warm-cache" in sys.argv:
         return warm_cache_main()
-    pos = [a for a in sys.argv[1:] if not a.startswith("--")]
+    pos = _positionals(sys.argv[1:])
     force = "--force" in sys.argv
     cfg = load_config(pos[0] if pos else None)
     ensure_dirs(cfg)

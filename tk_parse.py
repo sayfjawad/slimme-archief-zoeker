@@ -179,13 +179,18 @@ def best_per_vergadering(state: dict) -> dict:
 
 
 def main():
-    pos = [a for a in sys.argv[1:] if not a.startswith("--")]
-    parse_all = "--all" in sys.argv  # pool pre-population: keep every debate
+    argv = sys.argv[1:]
+    parse_all = "--all" in argv  # pool pre-population: keep every debate
     shard = (0, 1)  # --shard i/n : split the verslag list across machines
-    if "--shard" in sys.argv:                      # (only with --all; each shard
-        i, n = sys.argv[sys.argv.index("--shard") + 1].split("/")  # writes a
-        shard = (int(i), int(n))                   # disjoint set of files, so
-    cfg = load_config(pos[0] if pos else None)     # parallel runs are safe)
+    shard_val = None
+    if "--shard" in argv:                          # (only with --all; each shard
+        si = argv.index("--shard")                 # writes a disjoint set of
+        shard_val = argv[si + 1]                    # files, so parallel runs
+        i, n = shard_val.split("/")                 # are safe)
+        shard = (int(i), int(n))
+    # positional = a config slug; exclude flags and the --shard value
+    pos = [a for a in argv if not a.startswith("--") and a != shard_val]
+    cfg = load_config(pos[0] if pos else None)
     ensure_dirs(cfg)
     paths = cfg["_paths"]
     match = None if parse_all else cfg["tk"]["match"]
