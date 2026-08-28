@@ -47,6 +47,9 @@ def main():
     per_year = 20
     if "--per-year" in sys.argv:
         per_year = int(sys.argv[sys.argv.index("--per-year") + 1])
+    min_words = 200_000
+    if "--min-words" in sys.argv:
+        min_words = int(sys.argv[sys.argv.index("--min-words") + 1])
 
     ranking = json.loads((DATA / "speaker_ranking.json").read_text())
     by_year = ranking["by_year"]
@@ -64,8 +67,10 @@ def main():
             k = (r["verslagnaam"].casefold(), r["voornaam"].casefold())
             if k in seen or is_existing(r["match_achternaam"], r["voornaam"]):
                 continue
-            seen.add(k)
             o = overall.get(k, {})
+            if o.get("words", r["words"]) < min_words:
+                continue  # partial-year juniors etc. -- too little on record to be worth a page
+            seen.add(k)
             ya = o.get("years_active") or [int(year)]
             queue.append({
                 "slug": slugify(r["verslagnaam"]),
