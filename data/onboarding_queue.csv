@@ -3,106 +3,97 @@ rank,slug,verslagnaam,voornaam,match_achternaam,fractie,functie,first_year,total
 2,hermans,Hermans,Sophie,Hermans,VVD,"minister van Klimaat en Groene Groei, viceminister-president",2026,810075,176,2017-2026
 3,van-campen,Van Campen,Thom,Campen,VVD,lid Tweede Kamer,2026,548490,265,2021-2026
 4,van-weel,Van Weel,David,Weel,,minister van Justitie en Veiligheid,2026,630046,96,2024-2026
-5,sterk,Sterk,Mirjam,Sterk,,"minister van Langdurige Zorg, Jeugd en Sport",2026,175869,21,2026
-6,tielen,Tielen,Judith,Tielen,VVD,lid Tweede Kamer,2026,570348,319,2017-2026
-7,aartsen,Aartsen,Thierry,Aartsen,VVD,lid Tweede Kamer,2026,449786,132,2018-2026
-8,van-der-plas,Van der Plas,Caroline,Plas,BBB,lid Tweede Kamer,2026,930167,432,2021-2026
-9,ceder,Ceder,Don,Ceder,ChristenUnie,lid Tweede Kamer,2026,739653,385,2021-2026
-10,flach,Flach,André,Flach,SGP,lid Tweede Kamer,2026,468837,210,2023-2026
-11,dobbe,Dobbe,Sarah,Dobbe,SP,lid Tweede Kamer,2026,393958,192,2023-2026
-12,grinwis,Grinwis,Pieter,Grinwis,ChristenUnie,lid Tweede Kamer,2026,819960,393,2021-2026
-13,karremans,Karremans,Vincent,Karremans,,"staatssecretaris Jeugd, Preventie en Sport",2026,396086,63,2024-2026
-14,van-den-brink,Van den Brink,Bart,Brink,CDA,"minister van Asiel en Migratie, viceminister-president",2026,140036,35,2023-2026
-15,jetten,Jetten,Rob,Jetten,D66,lid Tweede Kamer,2026,918229,241,2017-2026
-16,vermeer,Vermeer,Henk,Vermeer,BBB,lid Tweede Kamer,2026,390927,230,2023-2026
-17,berendsen,Berendsen,Tom,Berendsen,EP/CDA,minister van Buitenlandse Zaken,2026,109157,18,2024-2026
-18,bikker,Bikker,Mirjam,Bikker,ChristenUnie,lid Tweede Kamer,2026,545467,280,2021-2026
-19,van-bruggen,Van Bruggen,Claudia,Bruggen,,staatssecretaris van Justitie en Veiligheid,2026,107065,18,2026
-20,boekholt-o-sullivan,Boekholt-O'Sullivan,Elanor,Boekholt-O'Sullivan,,minister van Volkshuisvesting en Ruimtelijke Ordening,2026,101522,18,2026
-21,heerma,Heerma,Pieter,Heerma,CDA,lid Tweede Kamer,2026,557050,299,2013-2026
-22,van-nispen,Van Nispen,Michiel,Nispen,SP,lid Tweede Kamer,2025,1015156,549,2014-2025
-23,struycken,Struycken,Teun,Struycken,,staatssecretaris Rechtsbescherming,2025,273721,47,2024-2025
-24,heinen,Heinen,Eelco,Heinen,VVD,minister van Financiën,2025,591793,116,2021-2026
-25,veldkamp,Veldkamp,Caspar,Veldkamp,NSC,minister van Buitenlandse Zaken,2025,356300,75,2023-2025
-26,keijzer,Keijzer,Mona,Keijzer,CDA,lid Tweede Kamer,2025,907993,454,2013-2026
-27,bosma,Bosma,Martin,Bosma,PVV,lid Tweede Kamer,2025,1126380,651,2013-2026
-28,wiersma,Wiersma,Femke,Wiersma,BBB,"minister van Landbouw, Visserij, Voedselzekerheid en Natuur",2025,343040,82,2024-2026
-29,brekelmans,Brekelmans,Ruben,Brekelmans,VVD,lid Tweede Kamer,2025,449217,192,2021-2026
-30,schoof,Schoof,Dick,Schoof,,"minister-president, minister van Algemene Zaken",2025,263695,29,2024-2025
-31,uitermark,Uitermark,Judith,Uitermark,NSC,minister van Binnenlandse Zaken en Koninkrijksrelaties,2025,241830,57,2023-2025
-32,van-hijum,Van Hijum,Eddy,Hijum,CDA,"minister van Sociale Zaken en Werkgelegenheid, viceminister-president",2025,401053,138,2013-2025
-33,van-der-lee,Van der Lee,Tom,Lee,GroenLinks-PvdA,lid Tweede Kamer,2025,879720,568,2017-2026
-34,de-jonge,De Jonge,Hugo,Jonge,,"minister van Volksgezondheid, Welzijn en Sport",2024,1933692,189,2017-2024
-35,paternotte,Paternotte,Jan,Paternotte,D66,lid Tweede Kamer,2024,715412,366,2017-2026
-36,beckerman,Beckerman,Sandra,Beckerman,SP,lid Tweede Kamer,2024,687457,522,2017-2026
-37,paul,Paul,Mariëlle,Paul,VVD,staatssecretaris Funderend Onderwijs en Emancipatie,2024,344107,85,2021-2026
-38,madlener,Madlener,Barry,Madlener,PVV,lid Tweede Kamer,2024,488229,296,2013-2025
-39,van-baarle,Van Baarle,Stephan,Baarle,DENK,lid Tweede Kamer,2024,531870,358,2021-2026
-40,agema,Agema,Fleur,Agema,PVV,lid Tweede Kamer,2024,753713,610,2013-2025
-41,dijk,Dijk,Jimmy,Dijk,SP,lid Tweede Kamer,2024,364070,213,2023-2026
-42,eerdmans,Eerdmans,Joost,Eerdmans,JA21,lid Tweede Kamer,2024,417164,336,2021-2026
-43,bergkamp,Bergkamp,Vera,Bergkamp,D66,lid Tweede Kamer,2023,1236527,592,2013-2023
-44,omtzigt,Omtzigt,Pieter,Omtzigt,CDA,lid Tweede Kamer,2023,1339453,696,2013-2025
-45,kuipers,Kuipers,Ernst,Kuipers,,"minister van Volksgezondheid, Welzijn en Sport",2023,269143,49,2017-2023
-46,kamminga,Kamminga,Roelien,Kamminga,VVD,lid Tweede Kamer,2023,401640,194,2021-2025
-47,helder,Helder,Conny,Helder,,minister voor Langdurige Zorg en Sport,2023,285693,56,2022-2024
-48,adema,Adema,Piet,Adema,,"minister van Landbouw, Natuur en Voedselkwaliteit",2023,278768,49,2022-2024
-49,van-gennip,Van Gennip,Karien,Gennip,,minister van Sociale Zaken en Werkgelegenheid,2023,303137,41,2022-2024
-50,leijten,Leijten,Renske,Leijten,SP,lid Tweede Kamer,2023,1137317,519,2013-2023
-51,westerveld,Westerveld,Lisa,Westerveld,GroenLinks,lid Tweede Kamer,2023,738267,500,2017-2026
-52,van-haga,Van Haga,Wybren,Haga,Groep Van Haga,lid Tweede Kamer,2023,342386,316,2018-2023
-53,kaag,Kaag,Sigrid,Kaag,D66,minister voor Buitenlandse Handel en Ontwikkelingssamenwerking,2023,490399,100,2017-2023
-54,klaver,Klaver,Jesse,Klaver,GroenLinks,lid Tweede Kamer,2023,873687,399,2013-2026
-55,schouten,Schouten,Carola,Schouten,ChristenUnie,"minister van Landbouw, Natuur en Voedselkwaliteit",2022,1189393,378,2013-2024
-56,bruins-slot,Bruins Slot,Hanke,Bruins,CDA,lid Tweede Kamer,2022,556687,313,2013-2024
-57,hoekstra,Hoekstra,Wopke,Hoekstra,CDA,minister van Financiën,2022,789247,117,2017-2023
-58,azarkan,Azarkan,Farid,Azarkan,DENK,lid Tweede Kamer,2022,469791,392,2017-2023
-59,maatoug,Maatoug,Senna,Maatoug,GroenLinks,lid Tweede Kamer,2022,251938,89,2021-2024
-60,nijboer,Nijboer,Henk,Nijboer,PvdA,lid Tweede Kamer,2022,736078,539,2013-2023
-61,hijink,Hijink,Maarten,Hijink,SP,lid Tweede Kamer,2022,415702,251,2017-2023
-62,ollongren,Ollongren,Kajsa,Ollongren,,"minister van Binnenlandse Zaken en Koninkrijksrelaties, viceminister-president",2021,769696,140,2017-2024
-63,grapperhaus,Grapperhaus,Ferdinand,Grapperhaus,,minister van Justitie en Veiligheid,2021,704075,150,2017-2021
-64,arib,Arib,Khadija,Arib,PvdA,lid Tweede Kamer,2021,1453472,696,2013-2022
-65,slob,Slob,Arie,Slob,ChristenUnie,minister voor Basis- en Voortgezet Onderwijs en Media,2021,728085,180,2013-2021
-66,simons,Simons,Sylvana,Simons,BIJ1,lid Tweede Kamer,2021,189222,152,2021-2023
-67,koolmees,Koolmees,Wouter,Koolmees,D66,minister van Sociale Zaken en Werkgelegenheid,2021,803816,272,2013-2025
-68,van-der-staaij,Van der Staaij,Kees,Staaij,SGP,lid Tweede Kamer,2021,651260,611,2013-2023
-69,wiebes,Wiebes,Eric,Wiebes,,minister van Economische Zaken en Klimaat,2020,997002,167,2014-2021
-70,asscher,Asscher,Lodewijk,Asscher,PvdA,"minister van Sociale Zaken en Werkgelegenheid, viceminister-president",2020,908836,260,2013-2021
-71,knops,Knops,Raymond,Knops,CDA,lid Tweede Kamer,2020,593955,241,2013-2023
-72,ouwehand,Ouwehand,Esther,Ouwehand,PvdD,lid Tweede Kamer,2020,808466,560,2013-2026
-73,van-engelshoven,Van Engelshoven,Ingrid,Engelshoven,D66,"minister van Onderwijs, Cultuur en Wetenschap",2020,428789,100,2017-2021
-74,van-ark,Van Ark,Tamara,Ark,VVD,staatssecretaris van Sociale Zaken en Werkgelegenheid,2020,367104,124,2013-2021
-75,van-nieuwenhuizen-wijbenga,Van Nieuwenhuizen-Wijbenga,Cora,Nieuwenhuizen-Wijbenga,,minister van Infrastructuur en Waterstaat,2020,240141,56,2013-2019
-76,snel,Snel,Menno,Snel,,staatssecretaris van Financiën,2019,444845,41,2017-2019
-77,bruins,Bruins,Bruno,Bruins,,minister voor Medische Zorg en Sport,2019,385814,81,2017-2020
-78,blok,Blok,Stef,Blok,,minister van Buitenlandse Zaken,2019,875664,210,2013-2021
-79,dekker,Dekker,Sander,Dekker,,"staatssecretaris van Onderwijs, Cultuur en Wetenschap",2019,886257,187,2013-2021
-80,van-veldhoven,Van Veldhoven,Stientje,Veldhoven,D66,lid Tweede Kamer,2018,573335,320,2013-2019
-81,van-rooijen,Van Rooijen,Martin,Rooijen,50PLUS,Lid Tweede Kamer,2018,268053,151,2017-2019
-82,kamp,Kamp,Henk,Kamp,,minister van Economische Zaken,2017,1153745,124,2013-2021
-83,plasterk,Plasterk,Ronald,Plasterk,,minister van Binnenlandse Zaken en Koninkrijksrelaties,2017,498859,131,2013-2024
-84,van-rijn,Van Rijn,Martin,Rijn,,"staatssecretaris van Volksgezondheid, Welzijn en Sport",2017,969091,134,2013-2020
-85,koenders,Koenders,Bert,Koenders,,minister van Buitenlandse Zaken,2017,430907,67,2014-2017
-86,dijksma,Dijksma,Sharon,Dijksma,PvdA,staatssecretaris van Economische Zaken,2017,584687,161,2013-2018
-87,dijsselbloem,Dijsselbloem,Jeroen,Dijsselbloem,PvdA,minister van Financiën,2017,671825,111,2013-2017
-88,van-dam,Van Dam,Martijn,Dam,PvdA,staatssecretaris van Economische Zaken,2017,332939,81,2013-2017
-89,verhoeven,Verhoeven,Kees,Verhoeven,D66,lid Tweede Kamer,2017,569046,314,2013-2021
-90,dijkhoff,Dijkhoff,Klaas,Dijkhoff,VVD,staatssecretaris van Veiligheid en Justitie,2017,529779,160,2013-2021
-91,van-der-steur,Van der Steur,Ard,Steur,VVD,minister van Veiligheid en Justitie,2016,681124,143,2013-2017
-92,bussemaker,Bussemaker,Jet,Bussemaker,,"minister van Onderwijs, Cultuur en Wetenschap",2016,578114,91,2013-2017
-93,schippers,Schippers,Edith,Schippers,,"minister van Volksgezondheid, Welzijn en Sport",2016,649673,113,2013-2017
-94,schultz-van-haegen-maas-geesteranus,Schultz van Haegen-Maas Geesteranus,Melanie,Schultz,,minister van Infrastructuur en Milieu,2016,471539,79,2013-2017
-95,grashoff,Grashoff,Rik,Grashoff,GroenLinks,lid Tweede Kamer,2016,320910,207,2015-2018
-96,van-miltenburg,Van Miltenburg,Anouchka,Miltenburg,VVD,Lid Tweede Kamer,2015,494085,266,2013-2016
-97,dik-faber,Dik-Faber,Carla,Dik,ChristenUnie,lid Tweede Kamer,2015,107077,99,2019-2021
-98,pechtold,Pechtold,Alexander,Pechtold,D66,lid Tweede Kamer,2015,373216,152,2013-2018
-99,van-weyenberg,Van Weyenberg,Steven,Weyenberg,D66,lid Tweede Kamer,2015,893310,531,2013-2024
-100,teeven,Teeven,Fred,Teeven,VVD,staatssecretaris van Veiligheid en Justitie,2014,325018,101,2013-2025
-101,klijnsma,Klijnsma,Jellejetta,Klijnsma,,staatssecretaris van Sociale Zaken en Werkgelegenheid,2014,295449,97,2013-2017
-102,opstelten,Opstelten,Ivo,Opstelten,,minister van Veiligheid en Justitie,2014,203125,63,2013-2015
-103,karabulut,Karabulut,Sadet,Karabulut,SP,lid Tweede Kamer,2014,432612,326,2013-2021
-104,voortman,Voortman,Linda,Voortman,GroenLinks,lid Tweede Kamer,2014,390253,323,2013-2018
-105,weekers,Weekers,Frans,Weekers,,staatssecretaris van Financiën,2013,85074,13,2013-2014
-106,van-ojik,Van Ojik,Abraham,Ojik,GroenLinks,Lid Tweede Kamer,2013,182834,132,2013-2018
-107,klein,Klein,Norbert,Klein,Klein,Lid Tweede Kamer,2013,213123,227,2013-2017
+5,tielen,Tielen,Judith,Tielen,VVD,lid Tweede Kamer,2026,570348,319,2017-2026
+6,aartsen,Aartsen,Thierry,Aartsen,VVD,lid Tweede Kamer,2026,449786,132,2018-2026
+7,van-der-plas,Van der Plas,Caroline,Plas,BBB,lid Tweede Kamer,2026,930167,432,2021-2026
+8,ceder,Ceder,Don,Ceder,ChristenUnie,lid Tweede Kamer,2026,739653,385,2021-2026
+9,flach,Flach,André,Flach,SGP,lid Tweede Kamer,2026,468837,210,2023-2026
+10,dobbe,Dobbe,Sarah,Dobbe,SP,lid Tweede Kamer,2026,393958,192,2023-2026
+11,grinwis,Grinwis,Pieter,Grinwis,ChristenUnie,lid Tweede Kamer,2026,819960,393,2021-2026
+12,karremans,Karremans,Vincent,Karremans,,"staatssecretaris Jeugd, Preventie en Sport",2026,396086,63,2024-2026
+13,jetten,Jetten,Rob,Jetten,D66,lid Tweede Kamer,2026,918229,241,2017-2026
+14,vermeer,Vermeer,Henk,Vermeer,BBB,lid Tweede Kamer,2026,390927,230,2023-2026
+15,bikker,Bikker,Mirjam,Bikker,ChristenUnie,lid Tweede Kamer,2026,545467,280,2021-2026
+16,heerma,Heerma,Pieter,Heerma,CDA,lid Tweede Kamer,2026,557050,299,2013-2026
+17,van-nispen,Van Nispen,Michiel,Nispen,SP,lid Tweede Kamer,2025,1015156,549,2014-2025
+18,struycken,Struycken,Teun,Struycken,,staatssecretaris Rechtsbescherming,2025,273721,47,2024-2025
+19,heinen,Heinen,Eelco,Heinen,VVD,minister van Financiën,2025,591793,116,2021-2026
+20,veldkamp,Veldkamp,Caspar,Veldkamp,NSC,minister van Buitenlandse Zaken,2025,356300,75,2023-2025
+21,keijzer,Keijzer,Mona,Keijzer,CDA,lid Tweede Kamer,2025,907993,454,2013-2026
+22,bosma,Bosma,Martin,Bosma,PVV,lid Tweede Kamer,2025,1126380,651,2013-2026
+23,wiersma,Wiersma,Femke,Wiersma,BBB,"minister van Landbouw, Visserij, Voedselzekerheid en Natuur",2025,343040,82,2024-2026
+24,brekelmans,Brekelmans,Ruben,Brekelmans,VVD,lid Tweede Kamer,2025,449217,192,2021-2026
+25,schoof,Schoof,Dick,Schoof,,"minister-president, minister van Algemene Zaken",2025,263695,29,2024-2025
+26,uitermark,Uitermark,Judith,Uitermark,NSC,minister van Binnenlandse Zaken en Koninkrijksrelaties,2025,241830,57,2023-2025
+27,van-hijum,Van Hijum,Eddy,Hijum,CDA,"minister van Sociale Zaken en Werkgelegenheid, viceminister-president",2025,401053,138,2013-2025
+28,van-der-lee,Van der Lee,Tom,Lee,GroenLinks-PvdA,lid Tweede Kamer,2025,879720,568,2017-2026
+29,de-jonge,De Jonge,Hugo,Jonge,,"minister van Volksgezondheid, Welzijn en Sport",2024,1933692,189,2017-2024
+30,paternotte,Paternotte,Jan,Paternotte,D66,lid Tweede Kamer,2024,715412,366,2017-2026
+31,beckerman,Beckerman,Sandra,Beckerman,SP,lid Tweede Kamer,2024,687457,522,2017-2026
+32,paul,Paul,Mariëlle,Paul,VVD,staatssecretaris Funderend Onderwijs en Emancipatie,2024,344107,85,2021-2026
+33,madlener,Madlener,Barry,Madlener,PVV,lid Tweede Kamer,2024,488229,296,2013-2025
+34,van-baarle,Van Baarle,Stephan,Baarle,DENK,lid Tweede Kamer,2024,531870,358,2021-2026
+35,agema,Agema,Fleur,Agema,PVV,lid Tweede Kamer,2024,753713,610,2013-2025
+36,dijk,Dijk,Jimmy,Dijk,SP,lid Tweede Kamer,2024,364070,213,2023-2026
+37,eerdmans,Eerdmans,Joost,Eerdmans,JA21,lid Tweede Kamer,2024,417164,336,2021-2026
+38,bergkamp,Bergkamp,Vera,Bergkamp,D66,lid Tweede Kamer,2023,1236527,592,2013-2023
+39,omtzigt,Omtzigt,Pieter,Omtzigt,CDA,lid Tweede Kamer,2023,1339453,696,2013-2025
+40,kuipers,Kuipers,Ernst,Kuipers,,"minister van Volksgezondheid, Welzijn en Sport",2023,269143,49,2017-2023
+41,kamminga,Kamminga,Roelien,Kamminga,VVD,lid Tweede Kamer,2023,401640,194,2021-2025
+42,helder,Helder,Conny,Helder,,minister voor Langdurige Zorg en Sport,2023,285693,56,2022-2024
+43,adema,Adema,Piet,Adema,,"minister van Landbouw, Natuur en Voedselkwaliteit",2023,278768,49,2022-2024
+44,van-gennip,Van Gennip,Karien,Gennip,,minister van Sociale Zaken en Werkgelegenheid,2023,303137,41,2022-2024
+45,leijten,Leijten,Renske,Leijten,SP,lid Tweede Kamer,2023,1137317,519,2013-2023
+46,westerveld,Westerveld,Lisa,Westerveld,GroenLinks,lid Tweede Kamer,2023,738267,500,2017-2026
+47,van-haga,Van Haga,Wybren,Haga,Groep Van Haga,lid Tweede Kamer,2023,342386,316,2018-2023
+48,kaag,Kaag,Sigrid,Kaag,D66,minister voor Buitenlandse Handel en Ontwikkelingssamenwerking,2023,490399,100,2017-2023
+49,klaver,Klaver,Jesse,Klaver,GroenLinks,lid Tweede Kamer,2023,873687,399,2013-2026
+50,schouten,Schouten,Carola,Schouten,ChristenUnie,"minister van Landbouw, Natuur en Voedselkwaliteit",2022,1189393,378,2013-2024
+51,bruins-slot,Bruins Slot,Hanke,Bruins,CDA,lid Tweede Kamer,2022,556687,313,2013-2024
+52,hoekstra,Hoekstra,Wopke,Hoekstra,CDA,minister van Financiën,2022,789247,117,2017-2023
+53,azarkan,Azarkan,Farid,Azarkan,DENK,lid Tweede Kamer,2022,469791,392,2017-2023
+54,maatoug,Maatoug,Senna,Maatoug,GroenLinks,lid Tweede Kamer,2022,251938,89,2021-2024
+55,nijboer,Nijboer,Henk,Nijboer,PvdA,lid Tweede Kamer,2022,736078,539,2013-2023
+56,hijink,Hijink,Maarten,Hijink,SP,lid Tweede Kamer,2022,415702,251,2017-2023
+57,ollongren,Ollongren,Kajsa,Ollongren,,"minister van Binnenlandse Zaken en Koninkrijksrelaties, viceminister-president",2021,769696,140,2017-2024
+58,grapperhaus,Grapperhaus,Ferdinand,Grapperhaus,,minister van Justitie en Veiligheid,2021,704075,150,2017-2021
+59,arib,Arib,Khadija,Arib,PvdA,lid Tweede Kamer,2021,1453472,696,2013-2022
+60,slob,Slob,Arie,Slob,ChristenUnie,minister voor Basis- en Voortgezet Onderwijs en Media,2021,728085,180,2013-2021
+61,koolmees,Koolmees,Wouter,Koolmees,D66,minister van Sociale Zaken en Werkgelegenheid,2021,803816,272,2013-2025
+62,van-der-staaij,Van der Staaij,Kees,Staaij,SGP,lid Tweede Kamer,2021,651260,611,2013-2023
+63,wiebes,Wiebes,Eric,Wiebes,,minister van Economische Zaken en Klimaat,2020,997002,167,2014-2021
+64,asscher,Asscher,Lodewijk,Asscher,PvdA,"minister van Sociale Zaken en Werkgelegenheid, viceminister-president",2020,908836,260,2013-2021
+65,knops,Knops,Raymond,Knops,CDA,lid Tweede Kamer,2020,593955,241,2013-2023
+66,ouwehand,Ouwehand,Esther,Ouwehand,PvdD,lid Tweede Kamer,2020,808466,560,2013-2026
+67,van-engelshoven,Van Engelshoven,Ingrid,Engelshoven,D66,"minister van Onderwijs, Cultuur en Wetenschap",2020,428789,100,2017-2021
+68,van-ark,Van Ark,Tamara,Ark,VVD,staatssecretaris van Sociale Zaken en Werkgelegenheid,2020,367104,124,2013-2021
+69,van-nieuwenhuizen-wijbenga,Van Nieuwenhuizen-Wijbenga,Cora,Nieuwenhuizen-Wijbenga,,minister van Infrastructuur en Waterstaat,2020,240141,56,2013-2019
+70,snel,Snel,Menno,Snel,,staatssecretaris van Financiën,2019,444845,41,2017-2019
+71,bruins,Bruins,Bruno,Bruins,,minister voor Medische Zorg en Sport,2019,385814,81,2017-2020
+72,blok,Blok,Stef,Blok,,minister van Buitenlandse Zaken,2019,875664,210,2013-2021
+73,dekker,Dekker,Sander,Dekker,,"staatssecretaris van Onderwijs, Cultuur en Wetenschap",2019,886257,187,2013-2021
+74,van-veldhoven,Van Veldhoven,Stientje,Veldhoven,D66,lid Tweede Kamer,2018,573335,320,2013-2019
+75,van-rooijen,Van Rooijen,Martin,Rooijen,50PLUS,Lid Tweede Kamer,2018,268053,151,2017-2019
+76,kamp,Kamp,Henk,Kamp,,minister van Economische Zaken,2017,1153745,124,2013-2021
+77,plasterk,Plasterk,Ronald,Plasterk,,minister van Binnenlandse Zaken en Koninkrijksrelaties,2017,498859,131,2013-2024
+78,van-rijn,Van Rijn,Martin,Rijn,,"staatssecretaris van Volksgezondheid, Welzijn en Sport",2017,969091,134,2013-2020
+79,koenders,Koenders,Bert,Koenders,,minister van Buitenlandse Zaken,2017,430907,67,2014-2017
+80,dijksma,Dijksma,Sharon,Dijksma,PvdA,staatssecretaris van Economische Zaken,2017,584687,161,2013-2018
+81,dijsselbloem,Dijsselbloem,Jeroen,Dijsselbloem,PvdA,minister van Financiën,2017,671825,111,2013-2017
+82,van-dam,Van Dam,Martijn,Dam,PvdA,staatssecretaris van Economische Zaken,2017,332939,81,2013-2017
+83,verhoeven,Verhoeven,Kees,Verhoeven,D66,lid Tweede Kamer,2017,569046,314,2013-2021
+84,dijkhoff,Dijkhoff,Klaas,Dijkhoff,VVD,staatssecretaris van Veiligheid en Justitie,2017,529779,160,2013-2021
+85,van-der-steur,Van der Steur,Ard,Steur,VVD,minister van Veiligheid en Justitie,2016,681124,143,2013-2017
+86,bussemaker,Bussemaker,Jet,Bussemaker,,"minister van Onderwijs, Cultuur en Wetenschap",2016,578114,91,2013-2017
+87,schippers,Schippers,Edith,Schippers,,"minister van Volksgezondheid, Welzijn en Sport",2016,649673,113,2013-2017
+88,schultz-van-haegen-maas-geesteranus,Schultz van Haegen-Maas Geesteranus,Melanie,Schultz,,minister van Infrastructuur en Milieu,2016,471539,79,2013-2017
+89,grashoff,Grashoff,Rik,Grashoff,GroenLinks,lid Tweede Kamer,2016,320910,207,2015-2018
+90,van-miltenburg,Van Miltenburg,Anouchka,Miltenburg,VVD,Lid Tweede Kamer,2015,494085,266,2013-2016
+91,pechtold,Pechtold,Alexander,Pechtold,D66,lid Tweede Kamer,2015,373216,152,2013-2018
+92,van-weyenberg,Van Weyenberg,Steven,Weyenberg,D66,lid Tweede Kamer,2015,893310,531,2013-2024
+93,teeven,Teeven,Fred,Teeven,VVD,staatssecretaris van Veiligheid en Justitie,2014,325018,101,2013-2025
+94,klijnsma,Klijnsma,Jellejetta,Klijnsma,,staatssecretaris van Sociale Zaken en Werkgelegenheid,2014,295449,97,2013-2017
+95,opstelten,Opstelten,Ivo,Opstelten,,minister van Veiligheid en Justitie,2014,203125,63,2013-2015
+96,karabulut,Karabulut,Sadet,Karabulut,SP,lid Tweede Kamer,2014,432612,326,2013-2021
+97,voortman,Voortman,Linda,Voortman,GroenLinks,lid Tweede Kamer,2014,390253,323,2013-2018
+98,klein,Klein,Norbert,Klein,Klein,Lid Tweede Kamer,2013,213123,227,2013-2017
