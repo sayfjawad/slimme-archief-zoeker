@@ -115,12 +115,14 @@ def reconcile(st: dict, done_on_disk: set[str]) -> list[str]:
         if slug in done_on_disk and p["status"] not in ("done", "building"):
             log(f"{slug}: already onboarded on c4130 -> done")
             p.update(status="done", finished=p.get("finished") or now(), served=True)
-        # resurrect a build that died (reboot / crash) mid-flight
-        if p["status"] == "building":
+        # resurrect a build that died (reboot / crash) mid-flight -- only if
+        # it's genuinely old AND has no finished index (a fresh build in pass 1
+        # legitimately has no embeddings.npy yet), and isn't a live subprocess
+        if p["status"] == "building" and slug not in _running:
             started = p.get("started", "")
             age_min = (time.time() - _epoch(started)) / 60 if started else 999
-            if age_min > STALE_BUILD_MIN or not _remote_index_exists(slug, p.get("worker")):
-                log(f"{slug}: stale 'building' ({age_min:.0f} min) -> back to pending")
+            if age_min > STALE_BUILD_MIN and not _remote_index_exists(slug, p.get("worker")):
+                log(f"{slug}: stale 'building' ({age_min:.0f} min, no index) -> back to pending")
                 p["status"] = "pending"
     return order
 
