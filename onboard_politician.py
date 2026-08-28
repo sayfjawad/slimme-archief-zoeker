@@ -24,6 +24,7 @@ import csv
 import fcntl
 import json
 import os
+import shutil
 import subprocess
 import sqlite3
 import sys
@@ -90,11 +91,18 @@ def main():
     except OSError:
         die("another daily_sync / onboarding holds /tmp/daily_sync.lock -- retry later")
 
-    if cfg_path.exists():
-        die(f"config/{slug}.json already exists")
     idx = data_dir / "index" / "index.sqlite"
-    if idx.exists():
-        die(f"{idx} already exists -- {slug} looks already onboarded")
+    emb = data_dir / "index" / "embeddings.npy"
+    if cfg_path.exists() and emb.exists():
+        die(f"{slug} already fully onboarded (config + index present)")
+    if cfg_path.exists() or data_dir.exists():
+        # a previous run got interrupted (config written, or a partial index
+        # with no embeddings.npy) -- clear it and start clean
+        print(f"clearing partial onboarding for {slug} (config={cfg_path.exists()}, "
+              f"data_dir={data_dir.exists()})", flush=True)
+        cfg_path.unlink(missing_ok=True)
+        if data_dir.exists():
+            shutil.rmtree(data_dir)
 
     backup_marker = Path(f"/data/backups/wilders-search/{date.today().isoformat()}")
     if not backup_marker.exists():
@@ -118,7 +126,10 @@ def main():
     cfg_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {cfg_path}:\n{cfg_path.read_text()}", flush=True)
 
-    env = {**os.environ, "PERSON": slug, "HF_HOME": "/data/huggingface", "CUDA_VISIBLE_DEVICES": ""}
+    # GPU 0 on c4130 is the free one (the other three run gpt-oss-120b); the
+    # nightly daily_sync build_index uses it too. Embedding 300k+ chunks on
+    # CPU is ~70 min; on the V100 it is a few minutes.
+    env = {**os.environ, "PERSON": slug, "HF_HOME": "/data/huggingface", "CUDA_VISIBLE_DEVICES": "0"}
     t0 = time.time()
 
     # ---- 3. grow the shared transcript pool with this person's debates
