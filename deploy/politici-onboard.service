@@ -1,0 +1,31 @@
+# Autonomous onboarding orchestrator -- runs on hp-z8, works down
+# data/onboarding_queue.csv, distributing builds across hp-z8 + c4130.
+# Survives reboot: Restart=always + `loginctl enable-linger sayf` + WantedBy.
+# State + resume: /data/SHARED/onboarding_state.json (on the NAS).
+#
+# Install (on hp-z8):
+#   loginctl enable-linger sayf
+#   mkdir -p ~/.config/systemd/user
+#   cp deploy/politici-onboard.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now politici-onboard
+#   journalctl --user -u politici-onboard -f      # live log
+[Unit]
+Description=Politici onboarding orchestrator (queue -> politicus.zoek-r.nl)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/data/git/slimme-archief-zoeker
+Environment=EMB_CACHE_LOCAL=/data/emb_cache
+Environment=Z8_PY=/data/git/gemeente-search/.venv/bin/python3
+Environment=C4130_HOST=sayf@100.64.0.13
+Environment=RESTART_EVERY=8
+ExecStartPre=/usr/bin/git -C /data/git/slimme-archief-zoeker pull -q --ff-only
+ExecStart=/data/git/gemeente-search/.venv/bin/python3 onboard_orchestrator.py
+Restart=always
+RestartSec=20
+
+[Install]
+WantedBy=default.target

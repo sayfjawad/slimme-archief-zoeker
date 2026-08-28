@@ -104,13 +104,19 @@ def main():
         if data_dir.exists():
             shutil.rmtree(data_dir)
 
-    backup_marker = Path(f"/data/backups/wilders-search/{date.today().isoformat()}")
-    if not backup_marker.exists():
-        print("today's backup_daily.sh has not run yet -- running it now", flush=True)
-        run(["./backup_daily.sh"], {**os.environ})
+    # backup pre-flight -- skipped when the orchestrator drives this (it
+    # guarantees today's backup_daily.sh ran on the serving host, and this
+    # process may be running on a build-only worker with no /data/backups).
+    if os.environ.get("ONBOARD_SKIP_BACKUP") == "1":
+        print("pre-flight: ONBOARD_SKIP_BACKUP=1 (orchestrator guarantees backup)", flush=True)
+    else:
+        backup_marker = Path(f"/data/backups/wilders-search/{date.today().isoformat()}")
         if not backup_marker.exists():
-            die("backup_daily.sh did not produce today's dated backup")
-    print(f"pre-flight OK -- backup present ({backup_marker.name})", flush=True)
+            print("today's backup_daily.sh has not run yet -- running it now", flush=True)
+            run(["./backup_daily.sh"], {**os.environ})
+            if not backup_marker.exists():
+                die("backup_daily.sh did not produce today's dated backup")
+        print(f"pre-flight OK -- backup present ({backup_marker.name})", flush=True)
 
     # ---- 2. config
     cfg = {
