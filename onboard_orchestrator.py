@@ -93,7 +93,16 @@ def queue_rows() -> list[dict]:
         return list(csv.DictReader(fh))
 
 
-def reconcile(st: dict) -> list[str]:
+def _onboarded_on_c4130() -> set[str]:
+    """slugs that already have config/<slug>.json AND /data/<SLUG>/index/embeddings.npy."""
+    r = sh(["ssh", C4130,
+            f"for f in {C4130_REPO}/config/*.json; do s=$(basename $f .json); "
+            f"d=/data/$(echo $s | tr 'a-z-' 'A-Z_')/index/embeddings.npy; "
+            f"[ -f \"$d\" ] && echo $s; done"])
+    return set(r.stdout.split())
+
+
+def reconcile(st: dict, done_on_disk: set[str]) -> list[str]:
     """Add any new queue rows as pending; return the ordered slug list."""
     order = []
     for row in queue_rows():
@@ -102,6 +111,10 @@ def reconcile(st: dict) -> list[str]:
         p = st["politicians"].setdefault(slug, {"status": "pending", "attempts": 0})
         p["rank"] = int(row["rank"])
         p["person"] = f"{row['voornaam']} {row['verslagnaam']}".strip()
+        # already live on c4130 (hand-onboarded, or a previous orchestrator run)
+        if slug in done_on_disk and p["status"] not in ("done", "building"):
+            log(f"{slug}: already onboarded on c4130 -> done")
+            p.update(status="done", finished=p.get("finished") or now(), served=True)
         # resurrect a build that died (reboot / crash) mid-flight
         if p["status"] == "building":
             started = p.get("started", "")
@@ -240,7 +253,7 @@ def _tail(path: str, n: int) -> list[str]:
 # --------------------------------------------------------------- serve
 def restart_and_commit(st: dict, new_done: list[str]) -> None:
     log(f"restarting politicus-search for {len(new_done)} new: {', '.join(new_done)}")
-    sh(["ssh", C4130, f"cd {C4130_REPO} && git pull -q; sudo systemctl restart politicus-search"],
+    sh(["ssh", C4130, f"cd {C4130_REPO} && git pull -q; sudo -n systemctl restart politicus-search"],
        timeout=120)
     for _ in range(40):
         if "200" in sh(["ssh", C4130,
@@ -276,7 +289,7 @@ def main() -> None:
                 pass
             last_fetch = time.time()
 
-        order = reconcile(st)
+        order = reconcile(st, _onboarded_on_c4130())
         save_state(st)
 
         pending = [s for s in order if st["politicians"][s]["status"] == "pending"
