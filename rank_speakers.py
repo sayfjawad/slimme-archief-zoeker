@@ -36,32 +36,41 @@ def norm(s: str) -> str:
     return " ".join((s or "").split()).strip()
 
 
-def key_of(achter: str, voor: str) -> tuple[str, str]:
-    return achter.casefold().strip(), voor.casefold().strip()
+def match_achternaam(achternaam_raw: str, verslagnaam: str) -> str:
+    """The surname token to put in config tk.match.achternaam. vlos <achternaam>
+    appends the tussenvoegsel ("Jonge de", "Steur van der"), so the first token
+    is the real surname; tk_parse.person_speaks() substring-matches it against
+    the stored "Voornaam Achternaam-raw (fractie)" string, which this is a
+    prefix of. Falls back to the last token of <verslagnaam> ("De Jonge")."""
+    if achternaam_raw:
+        return achternaam_raw.split()[0]
+    return (verslagnaam.split() or [""])[-1]
 
 
-def speaker_fields(block) -> tuple[str, str, str, str]:
-    """(voornaam, achternaam, fractie, functie) for a woordvoerder/interrumpant."""
+def speaker_fields(block) -> tuple[str, str, str, str, str]:
+    """(voornaam, verslagnaam, achternaam_raw, fractie, functie).
+    verslagnaam is the natural display surname ("De Jonge", "Van Ark")."""
     spr = block.find(f"{NS}spreker")
     if spr is None:
-        return "", "", "", ""
+        return "", "", "", "", ""
     voor = norm(spr.findtext(f"{NS}voornaam"))
-    achter = norm(spr.findtext(f"{NS}achternaam")) or norm(spr.findtext(f"{NS}verslagnaam"))
+    achter_raw = norm(spr.findtext(f"{NS}achternaam"))
+    verslag = norm(spr.findtext(f"{NS}verslagnaam")) or norm(spr.findtext(f"{NS}weergavenaam")) or achter_raw
     fractie = norm(spr.findtext(f"{NS}fractie"))
     functie = norm(spr.findtext(f"{NS}functie"))
-    return voor, achter, fractie, functie
+    return voor, verslag, achter_raw, fractie, functie
 
 
 def walk_speeches(root):
-    """Yield (voornaam, achternaam, fractie, functie, n_words) per speech turn."""
+    """Yield (voornaam, verslagnaam, achternaam_raw, fractie, functie, n_words)."""
     def walk(el):
         for child in el:
             t = tag(child)
             if t in SPEECH_TAGS:
-                voor, achter, fractie, functie = speaker_fields(child)
+                voor, verslag, achter_raw, fractie, functie = speaker_fields(child)
                 words = sum(len(x.split()) for x in block_alineas(child))
-                if achter and words:
-                    yield voor, achter, fractie, functie, words
+                if verslag and words:
+                    yield voor, verslag, achter_raw, fractie, functie, words
                 yield from walk(child)  # nested interrupties
             else:
                 yield from walk(child)
@@ -83,10 +92,12 @@ def main():
         xml_ids = xml_ids[:limit]
     print(f"scanning {len(xml_ids)} verslagen from {tk_dir}", flush=True)
 
-    # (achterKey, voorKey) -> {"display": (voor, achter), "fracties": Counter,
-    #   "functies": Counter, "years": {year: {"words", "turns", "days": set}}}
+    # (verslagnaamKey, voornaamKey) -> {"voor", "verslag", "match_achter",
+    #   "fracties": Counter, "functies": Counter,
+    #   "years": {year: {"words", "turns", "days": set}}}
     agg: dict = defaultdict(lambda: {
-        "display": ("", ""), "fracties": Counter(), "functies": Counter(),
+        "voor": "", "verslag": "", "match_achter": "",
+        "fracties": Counter(), "functies": Counter(),
         "years": defaultdict(lambda: {"words": 0, "turns": 0, "days": set()}),
     })
 
@@ -103,11 +114,12 @@ def main():
         year = datum[:4]
         if not year.isdigit():
             continue
-        for voor, achter, fractie, functie, words in walk_speeches(root):
-            if achter.casefold() in CHAIR or f"{voor} {achter}".casefold().strip() in CHAIR:
+        for voor, verslag, achter_raw, fractie, functie, words in walk_speeches(root):
+            if verslag.casefold() in CHAIR or f"{voor} {verslag}".casefold().strip() in CHAIR:
                 continue
-            e = agg[key_of(achter, voor)]
-            e["display"] = (voor, achter)
+            e = agg[(verslag.casefold(), voor.casefold().split(" ")[0] if voor else "")]
+            e["voor"], e["verslag"] = voor, verslag
+            e["match_achter"] = match_achternaam(achter_raw, verslag)
             if fractie:
                 e["fracties"][fractie] += 1
             if functie:
@@ -123,27 +135,22 @@ def main():
     # ---- flatten
     by_year: dict[str, list] = defaultdict(list)
     overall: list = []
-    for (_, _), e in agg.items():
-        voor, achter = e["display"]
+    for e in agg.values():
+        voor, verslag = e["voor"], e["verslag"]
         fractie = e["fracties"].most_common(1)[0][0] if e["fracties"] else ""
         functie = e["functies"].most_common(1)[0][0] if e["functies"] else ""
+        common = {"verslagnaam": verslag, "voornaam": voor,
+                  "match_achternaam": e["match_achter"], "fractie": fractie, "functie": functie}
         tot_words = tot_turns = 0
         all_days: set = set()
         for year, y in e["years"].items():
-            row = {
-                "year": int(year), "achternaam": achter, "voornaam": voor,
-                "fractie": fractie, "functie": functie,
-                "words": y["words"], "turns": y["turns"], "days": len(y["days"]),
-            }
-            by_year[year].append(row)
+            by_year[year].append({**common, "year": int(year),
+                                  "words": y["words"], "turns": y["turns"], "days": len(y["days"])})
             tot_words += y["words"]
             tot_turns += y["turns"]
             all_days |= y["days"]
-        overall.append({
-            "achternaam": achter, "voornaam": voor, "fractie": fractie, "functie": functie,
-            "words": tot_words, "turns": tot_turns, "days": len(all_days),
-            "years_active": sorted(int(y) for y in e["years"]),
-        })
+        overall.append({**common, "words": tot_words, "turns": tot_turns, "days": len(all_days),
+                        "years_active": sorted(int(y) for y in e["years"])})
 
     for year in by_year:
         by_year[year].sort(key=lambda r: r["words"], reverse=True)
@@ -159,16 +166,17 @@ def main():
 
     with (OUT_DIR / "speaker_ranking.csv").open("w", newline="") as fh:
         w = csv.writer(fh)
-        w.writerow(["year", "achternaam", "voornaam", "fractie", "functie", "words", "turns", "days"])
+        w.writerow(["year", "verslagnaam", "voornaam", "match_achternaam", "fractie",
+                    "functie", "words", "turns", "days"])
         for year in sorted(by_year, reverse=True):
             for r in by_year[year]:
-                w.writerow([year, r["achternaam"], r["voornaam"], r["fractie"],
-                            r["functie"], r["words"], r["turns"], r["days"]])
+                w.writerow([year, r["verslagnaam"], r["voornaam"], r["match_achternaam"],
+                            r["fractie"], r["functie"], r["words"], r["turns"], r["days"]])
 
     print(f"\n{len(overall)} distinct speakers -> {OUT_DIR}/speaker_ranking.{{json,csv}}")
     print("\ntop 15 overall (2013+ combined):")
     for r in overall[:15]:
-        print(f"  {r['words']:>10,}w  {r['voornaam']} {r['achternaam']} "
+        print(f"  {r['words']:>10,}w  {r['voornaam']} {r['verslagnaam']} "
               f"({r['fractie'] or r['functie'] or '?'})  {r['years_active'][0]}-{r['years_active'][-1]}")
 
 

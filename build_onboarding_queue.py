@@ -50,26 +50,27 @@ def main():
 
     ranking = json.loads((DATA / "speaker_ranking.json").read_text())
     by_year = ranking["by_year"]
-    overall = {(r["achternaam"].casefold(), r["voornaam"].casefold()): r for r in ranking["overall"]}
+    overall = {(r["verslagnaam"].casefold(), r["voornaam"].casefold()): r for r in ranking["overall"]}
     already = existing_matches()
 
-    def is_existing(achter: str, voor: str) -> bool:
-        a, v = achter.casefold(), voor.casefold()
-        return any(ea in a and (not ev or ev in v) for ea, ev in already)
+    def is_existing(match_achter: str, voor: str) -> bool:
+        a, v = match_achter.casefold(), voor.casefold()
+        return any((ea in a or a in ea) and (not ev or ev in v) for ea, ev in already)
 
     seen: set[tuple[str, str]] = set()
     queue: list[dict] = []
     for year in sorted(by_year, key=int, reverse=True):
         for r in by_year[year][:per_year]:
-            k = (r["achternaam"].casefold(), r["voornaam"].casefold())
-            if k in seen or is_existing(r["achternaam"], r["voornaam"]):
+            k = (r["verslagnaam"].casefold(), r["voornaam"].casefold())
+            if k in seen or is_existing(r["match_achternaam"], r["voornaam"]):
                 continue
             seen.add(k)
             o = overall.get(k, {})
             ya = o.get("years_active") or [int(year)]
             queue.append({
-                "slug": slugify(r["achternaam"]),
-                "achternaam": r["achternaam"], "voornaam": r["voornaam"],
+                "slug": slugify(r["verslagnaam"]),
+                "verslagnaam": r["verslagnaam"], "voornaam": r["voornaam"],
+                "match_achternaam": r["match_achternaam"],
                 "fractie": r["fractie"], "functie": r["functie"],
                 "first_year": int(year),
                 "total_words": o.get("words", r["words"]),
@@ -88,17 +89,17 @@ def main():
     out = DATA / "onboarding_queue.csv"
     with out.open("w", newline="") as fh:
         w = csv.writer(fh)
-        w.writerow(["rank", "slug", "achternaam", "voornaam", "fractie", "functie",
-                    "first_year", "total_words", "total_days", "years_active"])
+        w.writerow(["rank", "slug", "verslagnaam", "voornaam", "match_achternaam", "fractie",
+                    "functie", "first_year", "total_words", "total_days", "years_active"])
         for i, row in enumerate(queue, 1):
-            w.writerow([i, row["slug"], row["achternaam"], row["voornaam"], row["fractie"],
-                        row["functie"], row["first_year"], row["total_words"],
+            w.writerow([i, row["slug"], row["verslagnaam"], row["voornaam"], row["match_achternaam"],
+                        row["fractie"], row["functie"], row["first_year"], row["total_words"],
                         row["total_days"], row["years_active"]])
 
     print(f"{len(queue)} politicians queued -> {out}")
-    print("\nfirst 25:")
-    for i, row in enumerate(queue[:25], 1):
-        print(f"  {i:>3}. {row['slug']:<22} {row['voornaam']} {row['achternaam']} "
+    print("\nfirst 30:")
+    for i, row in enumerate(queue[:30], 1):
+        print(f"  {i:>3}. {row['slug']:<22} {row['voornaam']} {row['verslagnaam']} "
               f"({row['fractie'] or row['functie'] or '?'})  first {row['first_year']}  "
               f"{row['total_words']:,}w")
 
