@@ -132,9 +132,9 @@ def _video_count(db_path: Path) -> int | None:
         return None
 
 
-def cache_lookup(hashes: list[bytes]) -> dict[bytes, bytes]:
+def cache_lookup(hashes: list[bytes], db: Path | None = None) -> dict[bytes, bytes]:
     """{sha1 -> fp16 vector bytes} for the hashes already in the shared cache."""
-    con = sqlite3.connect(EMB_CACHE_DB, timeout=60)
+    con = sqlite3.connect(db or EMB_CACHE_DB, timeout=60)
     try:
         con.execute("PRAGMA busy_timeout=60000")
         con.execute("CREATE TABLE IF NOT EXISTS cache (h BLOB PRIMARY KEY, v BLOB) WITHOUT ROWID")
@@ -152,10 +152,10 @@ def cache_lookup(hashes: list[bytes]) -> dict[bytes, bytes]:
         con.close()
 
 
-def cache_store(pairs: dict[bytes, bytes]) -> None:
+def cache_store(pairs: dict[bytes, bytes], db: Path | None = None) -> None:
     if not pairs:
         return
-    con = sqlite3.connect(EMB_CACHE_DB, timeout=60)
+    con = sqlite3.connect(db or EMB_CACHE_DB, timeout=60)
     try:
         con.execute("PRAGMA busy_timeout=60000")
         con.executemany("INSERT OR IGNORE INTO cache (h, v) VALUES (?, ?)", list(pairs.items()))
@@ -206,7 +206,81 @@ def find_media_file(youtube_dir: Path, base: str) -> str:
     return ""
 
 
+def _embed_misses(all_texts, hashes, emb, miss):
+    """Embed the cache-miss chunks in place into `emb` (fp16 rows)."""
+    import torch
+    from embedder import Embedder
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    print(f"  embedding {len(miss)} chunks on {device}...", flush=True)
+    embedder = Embedder(device=device)
+    tok = embedder.tokenizer
+    order = [miss[k] for k in np.argsort([len(all_texts[i]) for i in miss])]
+    TOKEN_BUDGET = 16384
+    batch, bmax, done, t0 = [], 0, 0, time.time()
+
+    def flush():
+        nonlocal batch, bmax, done
+        if not batch:
+            return
+        emb[batch] = embedder.encode([all_texts[i] for i in batch]).numpy().astype(np.float16)
+        done += len(batch)
+        if done % 5000 < len(batch):
+            r = done / (time.time() - t0)
+            print(f"  {done}/{len(miss)}  {r:.0f} chunks/s  eta {(len(miss)-done)/max(r,1)/60:.1f} min", flush=True)
+        batch, bmax = [], 0
+
+    for i in order:
+        ntok = min(len(tok.encode(all_texts[i], add_special_tokens=True)), embedder.max_length)
+        nm = max(bmax, ntok)
+        if batch and nm * (len(batch) + 1) > TOKEN_BUDGET:
+            flush()
+            nm = ntok
+        batch.append(int(i))
+        bmax = nm
+    flush()
+
+
+def warm_cache_main():
+    """Embed EVERY chunk in the shared pool into emb_cache.sqlite, so later
+    build_index runs are 100% cache hits and need no GPU. --shard i/n splits
+    the pool across machines; each shard writes its own cache file, merge with
+    `sqlite3 emb_cache.sqlite '.dump'`-style INSERT OR IGNORE afterwards."""
+    shard = (0, 1)
+    if "--shard" in sys.argv:
+        i, n = sys.argv[sys.argv.index("--shard") + 1].split("/")
+        shard = (int(i), int(n))
+    cache_out = EMB_CACHE_DB
+    if "--cache-out" in sys.argv:
+        cache_out = Path(sys.argv[sys.argv.index("--cache-out") + 1])
+
+    pool = SHARED_DIR / "transcripts"
+    print(f"warm-cache: shard {shard[0]}/{shard[1]} of {pool} -> {cache_out}", flush=True)
+    all_texts = []
+    for base, _meta, transcript in iter_videos(pool):
+        if int(hashlib.sha1(base.encode()).hexdigest(), 16) % shard[1] != shard[0]:
+            continue
+        for c in merge_segments(transcript.get("segments") or []):
+            all_texts.append(c["text"])
+    print(f"  {len(all_texts)} chunks in this shard", flush=True)
+
+    hashes = [hashlib.sha1(t.encode("utf-8")).digest() for t in all_texts]
+    # look up against BOTH the canonical cache and this shard's own output, so
+    # a resumed run skips work already done
+    have = cache_lookup(hashes)
+    have.update(cache_lookup([h for h in hashes if h not in have], db=cache_out))
+    miss = [i for i, h in enumerate(hashes) if h not in have]
+    print(f"  {len(all_texts) - len(miss)} already cached, {len(miss)} to embed", flush=True)
+    if not miss:
+        return
+    emb = np.zeros((len(all_texts), DIM), dtype=np.float16)
+    _embed_misses(all_texts, hashes, emb, miss)
+    cache_store({hashes[i]: emb[i].tobytes() for i in miss}, db=cache_out)
+    print(f"  stored {len(miss)} vectors to {cache_out}", flush=True)
+
+
 def main():
+    if "--warm-cache" in sys.argv:
+        return warm_cache_main()
     pos = [a for a in sys.argv[1:] if not a.startswith("--")]
     force = "--force" in sys.argv
     cfg = load_config(pos[0] if pos else None)
@@ -286,44 +360,7 @@ def main():
     print(f"  cache: {len(all_texts) - len(miss)} hit, {len(miss)} to embed", flush=True)
 
     if miss:
-        import torch
-        from embedder import Embedder
-        device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        print(f"  embedding {len(miss)} chunks on {device}...", flush=True)
-        embedder = Embedder(device=device)
-        tok = embedder.tokenizer
-
-        order = [miss[k] for k in np.argsort([len(all_texts[i]) for i in miss])]
-        TOKEN_BUDGET = 16384
-        batch_idx: list[int] = []
-        batch_max_tok = 0
-        done = 0
-
-        def flush():
-            nonlocal batch_idx, batch_max_tok, done
-            if not batch_idx:
-                return
-            texts = [all_texts[i] for i in batch_idx]
-            vecs = embedder.encode(texts).numpy().astype(np.float16)
-            emb[batch_idx] = vecs
-            done += len(batch_idx)
-            if done % 5000 < len(batch_idx):
-                rate = done / (time.time() - t0)
-                eta = (len(miss) - done) / max(rate, 1)
-                print(f"  {done}/{len(miss)}  {rate:.0f} chunks/s  eta {eta/60:.1f} min", flush=True)
-            batch_idx = []
-            batch_max_tok = 0
-
-        for i in order:
-            ntok = min(len(tok.encode(all_texts[i], add_special_tokens=True)), embedder.max_length)
-            new_max = max(batch_max_tok, ntok)
-            if batch_idx and new_max * (len(batch_idx) + 1) > TOKEN_BUDGET:
-                flush()
-                new_max = ntok
-            batch_idx.append(int(i))
-            batch_max_tok = new_max
-        flush()
-
+        _embed_misses(all_texts, hashes, emb, miss)
         cache_store({hashes[i]: emb[i].tobytes() for i in miss})
 
     np.save(paths["index"] / "embeddings.npy", emb)
