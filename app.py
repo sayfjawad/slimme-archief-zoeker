@@ -36,10 +36,17 @@ from pipeline_config import load_all_configs
 
 BASE = Path(__file__).parent
 CONFIGS = load_all_configs()  # {slug: cfg} for every config/<slug>.json
-# A request without an explicit person falls back to this: the PERSON env var
-# (so a single-person systemd unit keeps behaving exactly as before) or, absent
-# that, the first slug alphabetically.
-DEFAULT_SLUG = os.environ.get("PERSON") or (sorted(CONFIGS)[0] if CONFIGS else None)
+
+# PERSON env var pins this process to one politician: only their index is
+# loaded and /api/persons returns just them, so a legacy single-person
+# systemd unit (wilders-search / yesilgoz-search) started from this same
+# checkout behaves and uses memory exactly as before -- no dropdown, no
+# sibling index loaded. Unset (the combined politicus-search unit) -> serve
+# every config/*.json.
+_PINNED = os.environ.get("PERSON") or None
+SERVED_SLUGS = [_PINNED] if _PINNED in CONFIGS else list(CONFIGS)
+# A request without an explicit person falls back to this.
+DEFAULT_SLUG = _PINNED if _PINNED in CONFIGS else (SERVED_SLUGS[0] if SERVED_SLUGS else None)
 # Debat Direct video is shared across everyone -- resolve it from any config.
 DG_DIR = next(iter(CONFIGS.values()))["_paths"]["debatgemist"] if CONFIGS else None
 STATS_DB = BASE / "stats.sqlite"  # outside index/ so re-indexing keeps history
@@ -86,9 +93,10 @@ def _load_person(slug: str, cfg: dict, device: str) -> dict | None:
 @app.on_event("startup")
 def load_index():
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    print(f"loading {len(CONFIGS)} politician index(es) on {device}:")
-    for slug, cfg in CONFIGS.items():
-        entry = _load_person(slug, cfg, device)
+    what = f"pinned to '{_PINNED}'" if _PINNED else f"{len(SERVED_SLUGS)} politician(s)"
+    print(f"loading index(es) on {device} ({what}):")
+    for slug in SERVED_SLUGS:
+        entry = _load_person(slug, CONFIGS[slug], device)
         if entry is not None:
             _state["persons"][slug] = entry
 
@@ -111,7 +119,7 @@ def load_index():
         device=device,
         dg_windows=dg_windows,
     )
-    print(f"index ready: {len(_state['persons'])}/{len(CONFIGS)} politicians served, "
+    print(f"index ready: {len(_state['persons'])}/{len(SERVED_SLUGS)} politicians served, "
           f"{len(dg_windows)} debate videos, default person '{DEFAULT_SLUG}'")
 
 
@@ -486,7 +494,7 @@ def _ranged_response(path: Path, media_type: str, request: Request) -> Streaming
 # every politician's own YouTube audio dir + the one shared debate-video dir.
 # Filenames are globally unique (YouTube IDs; "<date>-<slug>.mp4" for debates),
 # so a plain filename lookup across all of them is unambiguous.
-MEDIA_DIRS = [cfg["_paths"]["youtube"] for cfg in CONFIGS.values()]
+MEDIA_DIRS = [CONFIGS[s]["_paths"]["youtube"] for s in SERVED_SLUGS]
 if DG_DIR:
     MEDIA_DIRS.append(DG_DIR)
 
