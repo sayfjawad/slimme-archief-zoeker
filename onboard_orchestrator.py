@@ -54,6 +54,7 @@ Z8_PY = os.environ.get("Z8_PY", "/data/git/gemeente-search/.venv/bin/python3")
 RESTART_EVERY = int(os.environ.get("RESTART_EVERY", "8"))
 POLL_SECONDS = 15
 STALE_BUILD_MIN = 45          # a "building" entry older than this is presumed dead
+BUILD_TIMEOUT_MIN = 25        # kill a tracked build that runs longer than this
 MAX_ATTEMPTS = 3
 
 WORKERS = ["z8", "c4130"]     # one concurrent build each
@@ -316,9 +317,17 @@ def main() -> None:
                 save_state(st)
                 start_build(slug, w)
 
-        # reap finished
+        # reap finished; kill a build that has run far past any sane duration
+        # (a hung ssh, a wedged NFS read) so its worker slot frees up
         for slug in list(_running):
-            if _running[slug]["proc"].poll() is not None:
+            r = _running[slug]
+            if r["proc"].poll() is not None:
+                finish_build(slug, st)
+            elif time.time() - r["started"] > BUILD_TIMEOUT_MIN * 60:
+                log(f"{slug}: build exceeded {BUILD_TIMEOUT_MIN} min -- killing")
+                r["proc"].kill()
+                if r["worker"] == "c4130":
+                    sh(["ssh", C4130, f"pkill -f 'onboard_politician.py {slug}'"])
                 finish_build(slug, st)
 
         # politicians built but not yet pushed live
