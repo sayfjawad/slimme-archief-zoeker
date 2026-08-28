@@ -143,6 +143,10 @@ def main():
     overall: list = []
     for e in agg.values():
         voor, verslag = modal(e["voor"]), modal(e["verslag"])
+        # the Kamer sometimes uses the full name as <verslagnaam> ("Martin
+        # Bosma") -- strip a leading first name so display doesn't double it
+        if voor and verslag.lower().startswith(voor.lower() + " "):
+            verslag = verslag[len(voor) + 1:]
         e["match_achter"] = modal(e["match_achter"])
         fractie = e["fracties"].most_common(1)[0][0] if e["fracties"] else ""
         functie = e["functies"].most_common(1)[0][0] if e["functies"] else ""

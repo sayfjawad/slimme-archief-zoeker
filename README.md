@@ -145,16 +145,20 @@ what's objectively shared is shared:
   audio + ASR transcripts, and their own search index/app instance — never
   shared, since there's no cross-person attribution inside it.
 
-Onboarding a new politician (~a few hours of hands-on work, not days):
-persoon-id via TK OData (`contains(Achternaam,'...')`), verify their party's
-YouTube channel (don't guess — confirm it), write `config/<slug>.json`,
-`tk_parse.py <slug>` + `ob_parse.py <slug>` (usually mostly free reuse from
-the shared pool), `PERSON=<slug> ./dg_distributed.sh` for their few missing
-debate videos, `PERSON=<slug> python3 yt_sync.py` + diarized
-`transcribe_batch.py`, `PERSON=<slug> python3 build_index.py`, then a
-`<slug>-search.service` unit + nginx vhost + certbot on the edge host. In
-practice Yeşilgöz reused 326 of 529 relevant vergaderingen and 85 of 279
-debate days for free from Wilders' already-downloaded data.
+**Onboarding, TK text only** (the fast path — no YouTube, no video download):
+`onboard_politician.py <slug>` writes a minimal `config/<slug>.json` (just a
+`tk` section), runs `tk_parse.py <slug>` (grows the shared pool) then
+`build_index.py <slug>` (that politician's index only), and asserts the result
+is non-empty. `onboard_batch.sh [N]` does the next N rows of
+`data/onboarding_queue.csv` and restarts the combined app once. Full steps,
+safeguards and recovery: **`docs/onboarding-runbook.md`**. The queue itself
+comes from `rank_speakers.py` (tally every speaker's spoken words per year from
+the already-downloaded vlos XML) → `build_onboarding_queue.py`.
+
+A config with `ob` and/or `youtube` sections additionally pulls Handelingen
+1995–2013 / party-channel ASR / debate video; omit them and every download
+step is skipped. In practice Yeşilgöz reused 326 of 529 relevant vergaderingen
+and 85 of 279 debate days for free from Wilders' already-downloaded data.
 
 Every rebuild (`build_index.py`, both this repo's and abo-ali-search's) now
 backs up the current index to `index/backups/<date>/` first, and
