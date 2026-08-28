@@ -1,0 +1,33 @@
+# Combined multi-politician smart-search app -> https://politicus.zoek-r.nl
+# One process, serves every config/<slug>.json, politician picked from a
+# dropdown. No PERSON= (that would pin it to one). Reloads every politician's
+# index on start. CPU-only search (CUDA_VISIBLE_DEVICES=), RAG via the shared
+# gpt-oss-120b llama.cpp server.
+#
+# Install:
+#   sudo cp deploy/politicus-search.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now politicus-search
+[Unit]
+Description=Politici smart-search (combined, FastAPI, port 8905)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sayf
+Group=sayf
+WorkingDirectory=/data/wilders-search
+Environment=PORT=8905
+Environment=HF_HOME=/data/huggingface
+Environment=CUDA_VISIBLE_DEVICES=
+Environment=LLM_BASE_URL=http://100.64.0.13:8080/v1
+Environment=LLM_MODEL_ID=gpt-oss-120b
+Environment=LLM_REASONING_EFFORT=low
+ExecStart=/data/abo-ali-search/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8905
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

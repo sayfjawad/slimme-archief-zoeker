@@ -46,6 +46,25 @@ def load_config(slug: str | None = None) -> dict:
     return cfg
 
 
+def load_all_configs() -> dict[str, dict]:
+    """Every tracked politician's config, keyed by slug (config/<slug>.json).
+
+    Used by the combined search app (app.py), which serves all of them from
+    one process with a person selector. Each config keeps its own data_dir,
+    so the per-person index/youtube/transcripts paths stay separate.
+
+    NOTE: unlike load_config(), this ignores the PERSON env var (there is no
+    single "current" person here). It still honours DATA_DIR/SHARED_DIR, but
+    a single DATA_DIR shared across every person only makes sense for a
+    one-person local dev run -- for multi-person local dev leave DATA_DIR
+    unset and let each config's own data_dir apply.
+    """
+    return {
+        path.stem: load_config(path.stem)
+        for path in sorted(CONFIG_DIR.glob("*.json"))
+    }
+
+
 def ensure_dirs(cfg: dict) -> None:
     for key in ("tk_xml", "ob_xml", "debatgemist", "shared_transcripts",
                 "youtube", "transcripts", "index"):

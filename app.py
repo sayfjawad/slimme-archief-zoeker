@@ -1,12 +1,21 @@
-"""Wilders-archief smart-search web application.
+"""Politici smart-search web application.
 
-- POST /api/search  semantic search over all transcripts (date/speaker-filterable)
-- POST /api/ask     RAG: retrieve relevant fragments + LLM answer with citations
-- GET  /media/{f}   serve local audio (opus) with seekable playback
-- /                 single-page frontend (static/index.html)
+Combined multi-politician archive: one process serves every politician in
+config/*.json, the visitor picks one from a dropdown. Each request carries a
+`person` slug; only that politician's index is searched.
 
-Same architecture as abo-ali-search; sources here are official Tweede Kamer
-verslagen (transcript_source=official) and YouTube ASR transcripts.
+- GET  /api/persons   politicians available in this instance (drives the dropdown)
+- POST /api/search     semantic search over one politician's transcripts
+- POST /api/ask        RAG: retrieve relevant fragments + LLM answer with citations
+- GET  /api/stats      per-politician index stats (?person=<slug>)
+- GET  /api/statistics per-politician usage stats (?person=<slug>)
+- GET  /media/{f}      serve local audio/video with seekable playback
+- /                    single-page frontend (static/index.html)
+
+Same architecture as abo-ali-search; sources are official Tweede Kamer
+verslagen (transcript_source=official), 1995-2013 Handelingen, and YouTube
+ASR transcripts. The parliamentary transcript pool + debate video under
+SHARED_DIR are shared across every politician.
 """
 import json
 import os
@@ -23,41 +32,71 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from embedder import Embedder
-from pipeline_config import load_config
+from pipeline_config import load_all_configs
 
 BASE = Path(__file__).parent
-CFG = load_config()
-INDEX_DIR = CFG["_paths"]["index"]
-MEDIA_DIR = CFG["_paths"]["youtube"]
-DG_DIR = CFG["_paths"]["debatgemist"]
-PERSON = CFG["person"]
-PERSON_SLUG = CFG["slug"]
-PERSON_MATCH = CFG["tk"]["match"]["achternaam"]
+CONFIGS = load_all_configs()  # {slug: cfg} for every config/<slug>.json
+# A request without an explicit person falls back to this: the PERSON env var
+# (so a single-person systemd unit keeps behaving exactly as before) or, absent
+# that, the first slug alphabetically.
+DEFAULT_SLUG = os.environ.get("PERSON") or (sorted(CONFIGS)[0] if CONFIGS else None)
+# Debat Direct video is shared across everyone -- resolve it from any config.
+DG_DIR = next(iter(CONFIGS.values()))["_paths"]["debatgemist"] if CONFIGS else None
 STATS_DB = BASE / "stats.sqlite"  # outside index/ so re-indexing keeps history
 
-app = FastAPI(title=f"{PERSON} Archief")
+app = FastAPI(title="Politici Archief")
 
 # ---------------------------------------------------------------- index state
-_state: dict = {}
+# _state["persons"][slug] -> {db, matrix, dates, person_mask, videos, chunks,
+#                             person_chunks}
+# _state shared: embedder, device, dg_windows, llm_base_url (cache)
+_state: dict = {"persons": {}}
 
 
-@app.on_event("startup")
-def load_index():
-    db = sqlite3.connect(INDEX_DIR / "index.sqlite", check_same_thread=False)
+def _load_person(slug: str, cfg: dict, device: str) -> dict | None:
+    index_dir = cfg["_paths"]["index"]
+    db_path = index_dir / "index.sqlite"
+    emb_path = index_dir / "embeddings.npy"
+    if not db_path.exists() or not emb_path.exists():
+        print(f"  [skip] {slug}: no index at {index_dir} (config kept, not served)")
+        return None
+    db = sqlite3.connect(db_path, check_same_thread=False)
     db.row_factory = sqlite3.Row
-    emb = np.load(INDEX_DIR / "embeddings.npy")
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    matrix = torch.from_numpy(emb).to(device)  # (n, 1024) fp16
-    # per-chunk upload_date + person mask for fast filtering on GPU
+    matrix = torch.from_numpy(np.load(emb_path)).to(device)  # (n, 1024) fp16
+    match = (cfg["tk"]["match"]["achternaam"] or "").lower()
     rows = db.execute(
         "SELECT c.id, c.speaker, v.upload_date FROM chunks c JOIN videos v ON v.video = c.video ORDER BY c.id"
     ).fetchall()
     dates = np.array([int(r["upload_date"] or 0) for r in rows], dtype=np.int64)
-    person = np.array([PERSON_MATCH.lower() in (r["speaker"] or "").lower() for r in rows])
-    # Debat Direct video mapping: wallclock -> (file, video_start)
+    person = np.array([match in (r["speaker"] or "").lower() for r in rows])
+    entry = dict(
+        db=db,
+        matrix=matrix,
+        dates=torch.from_numpy(dates).to(device),
+        person_mask=torch.from_numpy(person).to(device),
+        videos=db.execute("SELECT COUNT(*) FROM videos").fetchone()[0],
+        chunks=int(matrix.shape[0]),
+        person_chunks=int(person.sum()),
+    )
+    print(f"  [ok]   {slug} ({cfg['person']}): {entry['chunks']} chunks, "
+          f"{entry['person_chunks']} by {cfg['tk']['match']['achternaam']}")
+    return entry
+
+
+@app.on_event("startup")
+def load_index():
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    print(f"loading {len(CONFIGS)} politician index(es) on {device}:")
+    for slug, cfg in CONFIGS.items():
+        entry = _load_person(slug, cfg, device)
+        if entry is not None:
+            _state["persons"][slug] = entry
+
+    # Debat Direct video mapping: wallclock -> (file, video_start). Shared
+    # pool, loaded once (keyed by date+slug, reused by anyone who spoke).
     dg_windows = []
-    dg_state_path = DG_DIR / "state.json"
-    if dg_state_path.exists():
+    dg_state_path = DG_DIR / "state.json" if DG_DIR else None
+    if dg_state_path and dg_state_path.exists():
         for fname, info in json.loads(dg_state_path.read_text()).items():
             try:
                 t0 = datetime.strptime(info["video_start"], "%Y-%m-%dT%H:%M:%S%z").replace(tzinfo=None)
@@ -68,23 +107,26 @@ def load_index():
                 dg_windows.append((t0, t1, fname))
     dg_windows.sort()
     _state.update(
-        db=db,
-        matrix=matrix,
-        dates=torch.from_numpy(dates).to(device),
-        person_mask=torch.from_numpy(person).to(device),
         embedder=Embedder(device=device, max_length=512),
         device=device,
         dg_windows=dg_windows,
     )
-    print(f"index loaded: {matrix.shape[0]} chunks on {device} ({int(person.sum())} by {PERSON}), "
-          f"{len(dg_windows)} debate videos")
+    print(f"index ready: {len(_state['persons'])}/{len(CONFIGS)} politicians served, "
+          f"{len(dg_windows)} debate videos, default person '{DEFAULT_SLUG}'")
+
+
+def resolve_slug(person: str | None) -> str:
+    """Request person -> a slug that is actually loaded, or HTTP 400."""
+    slug = person or DEFAULT_SLUG
+    if slug not in _state["persons"]:
+        raise HTTPException(400, f"unknown or unavailable person: {person!r}")
+    return slug
 
 
 # ------------------------------------------------------------- usage tracking
-# NOTE: wilders-search and yesilgoz-search (and any future person) run from
-# this SAME checkout with different PERSON env vars, so STATS_DB is one
-# shared file on disk. Every row is tagged with `person` (the config slug)
-# so each instance's /api/statistics only ever aggregates its own traffic.
+# STATS_DB is one shared file on disk (also shared with any legacy
+# single-person unit still running from this checkout). Every row is tagged
+# with `person` (the config slug) so stats are always per-politician.
 def _stats_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(STATS_DB, timeout=10)
     conn.execute("""CREATE TABLE IF NOT EXISTS queries (
@@ -104,37 +146,39 @@ def client_ip(request: Request) -> str:
     return ip or (request.client.host if request.client else "unknown")
 
 
-def log_query(request: Request, mode: str, query: str):
+def log_query(request: Request, slug: str, mode: str, query: str):
     try:
         with _stats_conn() as conn:
             conn.execute(
                 "INSERT INTO queries (mode, ip, query, person) VALUES (?,?,?,?)",
-                (mode, client_ip(request), query[:500], PERSON_SLUG),
+                (mode, client_ip(request), query[:500], slug),
             )
     except Exception as e:  # stats must never break search
         print(f"stats logging failed: {e}")
 
 
 @app.get("/api/statistics")
-def api_statistics():
+def api_statistics(person: str | None = None):
+    slug = resolve_slug(person)
     with _stats_conn() as conn:
         total = conn.execute(
-            "SELECT COUNT(*) FROM queries WHERE person=?", (PERSON_SLUG,)).fetchone()[0]
+            "SELECT COUNT(*) FROM queries WHERE person=?", (slug,)).fetchone()[0]
         by_mode = dict(conn.execute(
-            "SELECT mode, COUNT(*) FROM queries WHERE person=? GROUP BY mode", (PERSON_SLUG,)).fetchall())
+            "SELECT mode, COUNT(*) FROM queries WHERE person=? GROUP BY mode", (slug,)).fetchall())
         unique_ips = conn.execute(
-            "SELECT COUNT(DISTINCT ip) FROM queries WHERE person=?", (PERSON_SLUG,)).fetchone()[0]
+            "SELECT COUNT(DISTINCT ip) FROM queries WHERE person=?", (slug,)).fetchone()[0]
         today = conn.execute(
             "SELECT COUNT(*), COUNT(DISTINCT ip) FROM queries WHERE person=? AND date(ts) = date('now')",
-            (PERSON_SLUG,)).fetchone()
+            (slug,)).fetchone()
         per_day = conn.execute("""
             SELECT date(ts) d, COUNT(*), COUNT(DISTINCT ip)
             FROM queries WHERE person=? AND ts >= datetime('now','-30 days')
-            GROUP BY d ORDER BY d""", (PERSON_SLUG,)).fetchall()
+            GROUP BY d ORDER BY d""", (slug,)).fetchall()
         first = conn.execute(
-            "SELECT MIN(date(ts)) FROM queries WHERE person=?", (PERSON_SLUG,)).fetchone()[0]
+            "SELECT MIN(date(ts)) FROM queries WHERE person=?", (slug,)).fetchone()[0]
     return {
-        "person": PERSON,
+        "person": CONFIGS[slug]["person"],
+        "slug": slug,
         "total_queries": total,
         "search_queries": by_mode.get("search", 0),
         "ask_queries": by_mode.get("ask", 0),
@@ -177,9 +221,9 @@ def dg_media(wallclock: str) -> tuple[str, str]:
     return "", ""
 
 
-def retrieve(query: str, top_k: int, date_from: str | None, date_to: str | None,
+def retrieve(slug: str, query: str, top_k: int, date_from: str | None, date_to: str | None,
              only_person: bool = False):
-    st = _state
+    st = {**_state, **_state["persons"][slug]}  # shared keys + this person's index
     q = st["embedder"].encode([query]).to(device=st["device"], dtype=st["matrix"].dtype)  # (1, 1024)
     scores = (st["matrix"] @ q.T).squeeze(1).float()  # (n,)
     neg = torch.tensor(-1.0, device=scores.device)
@@ -230,6 +274,7 @@ def retrieve(query: str, top_k: int, date_from: str | None, date_to: str | None,
 
 class SearchReq(BaseModel):
     query: str
+    person: str | None = None
     top_k: int = 20
     date_from: str | None = None  # YYYYMMDD
     date_to: str | None = None
@@ -240,8 +285,10 @@ class SearchReq(BaseModel):
 def api_search(req: SearchReq, request: Request):
     if not req.query.strip():
         raise HTTPException(400, "empty query")
-    log_query(request, "search", req.query)
-    return {"results": retrieve(req.query, min(req.top_k, 100), req.date_from, req.date_to, req.only_person)}
+    slug = resolve_slug(req.person)
+    log_query(request, slug, "search", req.query)
+    return {"results": retrieve(slug, req.query, min(req.top_k, 100),
+                                req.date_from, req.date_to, req.only_person)}
 
 
 # ------------------------------------------------------------------------ RAG
@@ -283,14 +330,15 @@ def llm_base_url() -> str | None:
     return None
 
 
-ANSWER_SYSTEM = f"""Je bent een onderzoeksassistent voor een doorzoekbaar archief van alles wat
-{PERSON} in het openbaar heeft gezegd: officiële Tweede Kamer-verslagen en
+def answer_system(person: str) -> str:
+    return f"""Je bent een onderzoeksassistent voor een doorzoekbaar archief van alles wat
+{person} in het openbaar heeft gezegd: officiële Tweede Kamer-verslagen en
 transcripties van openbare video's. Je krijgt genummerde fragmenten uit dit
 archief (ASR-fragmenten kunnen transcriptiefouten bevatten — ga daar slim mee om).
 Beantwoord de vraag van de gebruiker uitsluitend op basis van de fragmenten:
 - Zeg wat er gezegd is en wanneer (datum en tijdstip binnen het debat/de video).
 - Zet na elke bewering het bronnummer tussen blokhaken, bijv. [3].
-- Fragmenten van andere sprekers zijn context; schrijf niets aan {PERSON} toe
+- Fragmenten van andere sprekers zijn context; schrijf niets aan {person} toe
   dat een andere spreker zei.
 - Staat het antwoord niet in de fragmenten, zeg dat dan expliciet.
 - Antwoord in helder, beknopt Nederlands. Blijf feitelijk en neutraal."""
@@ -298,6 +346,7 @@ Beantwoord de vraag van de gebruiker uitsluitend op basis van de fragmenten:
 
 class AskReq(BaseModel):
     question: str
+    person: str | None = None
     top_k: int = 16
     date_from: str | None = None
     date_to: str | None = None
@@ -308,8 +357,9 @@ class AskReq(BaseModel):
 def api_ask(req: AskReq, request: Request):
     if not req.question.strip():
         raise HTTPException(400, "empty question")
-    log_query(request, "ask", req.question)
-    sources = retrieve(req.question, min(req.top_k, 60), req.date_from, req.date_to, req.only_person)
+    slug = resolve_slug(req.person)
+    log_query(request, slug, "ask", req.question)
+    sources = retrieve(slug, req.question, min(req.top_k, 60), req.date_from, req.date_to, req.only_person)
     answer, error = None, None
     base_url = llm_base_url()
     if not base_url:
@@ -329,7 +379,7 @@ def api_ask(req: AskReq, request: Request):
                 "temperature": 0.3,
                 "reasoning_effort": LLM_REASONING_EFFORT,
                 "messages": [
-                    {"role": "system", "content": ANSWER_SYSTEM},
+                    {"role": "system", "content": answer_system(CONFIGS[slug]["person"])},
                     {"role": "user",
                      "content": f"Fragmenten:\n\n{excerpts}\n\nVraag: {req.question}"},
                 ],
@@ -354,16 +404,32 @@ def api_ask(req: AskReq, request: Request):
     return {"answer": answer, "error": error, "sources": sources}
 
 
-@app.get("/api/stats")
-def api_stats():
-    db = _state["db"]
+def _person_summary(slug: str) -> dict:
+    p = _state["persons"][slug]
+    cfg = CONFIGS[slug]
     return {
-        "videos": db.execute("SELECT COUNT(*) FROM videos").fetchone()[0],
-        "chunks": db.execute("SELECT COUNT(*) FROM chunks").fetchone()[0],
-        "person": PERSON,
-        "person_chunks": int(_state["person_mask"].sum().item()),
-        "hero_image": CFG.get("hero_image"),
+        "slug": slug,
+        "person": cfg["person"],
+        "hero_image": cfg.get("hero_image"),
+        "videos": p["videos"],
+        "chunks": p["chunks"],
+        "person_chunks": p["person_chunks"],
     }
+
+
+@app.get("/api/persons")
+def api_persons():
+    """Every politician this instance can serve, for the frontend dropdown."""
+    return {
+        "default": DEFAULT_SLUG if DEFAULT_SLUG in _state["persons"] else next(iter(_state["persons"]), None),
+        "persons": sorted((_person_summary(s) for s in _state["persons"]),
+                          key=lambda d: d["person"]),
+    }
+
+
+@app.get("/api/stats")
+def api_stats(person: str | None = None):
+    return _person_summary(resolve_slug(person))
 
 
 # ---------------------------------------------------------------------- media
@@ -417,13 +483,21 @@ def _ranged_response(path: Path, media_type: str, request: Request) -> Streaming
                               media_type=media_type, headers=headers)
 
 
+# every politician's own YouTube audio dir + the one shared debate-video dir.
+# Filenames are globally unique (YouTube IDs; "<date>-<slug>.mp4" for debates),
+# so a plain filename lookup across all of them is unambiguous.
+MEDIA_DIRS = [cfg["_paths"]["youtube"] for cfg in CONFIGS.values()]
+if DG_DIR:
+    MEDIA_DIRS.append(DG_DIR)
+
+
 @app.get("/media/{filename}")
 def media(filename: str, request: Request):
     # prevent path traversal
     safe = os.path.basename(filename)
     if safe != filename:
         raise HTTPException(404, "not found")
-    for directory in (MEDIA_DIR, DG_DIR):
+    for directory in MEDIA_DIRS:
         path = directory / safe
         if path.is_file():
             if safe.endswith(".opus"):
