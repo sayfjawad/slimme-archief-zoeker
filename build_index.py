@@ -31,8 +31,10 @@ from pathlib import Path
 
 import numpy as np
 
-from embedder import Embedder, DIM
 from pipeline_config import load_config, ensure_dirs, SHARED_DIR
+
+DIM = 1024  # BGE-M3 dense dim (see embedder.py); kept here so a warm-cache
+# build (every chunk already embedded) never has to import torch/transformers.
 
 MERGE_TARGET_CHARS = 700
 SHRINK_GUARD = 0.9  # refuse to leave a rebuilt index with <90% of the prior video count (unless --force)
@@ -285,6 +287,7 @@ def main():
 
     if miss:
         import torch
+        from embedder import Embedder
         device = "cuda:0" if torch.cuda.is_available() else "cpu"
         print(f"  embedding {len(miss)} chunks on {device}...", flush=True)
         embedder = Embedder(device=device)
