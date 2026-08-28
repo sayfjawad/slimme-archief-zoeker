@@ -22,6 +22,7 @@ Two sources, per pipeline_config.py:
 import hashlib
 import itertools
 import json
+import os
 import shutil
 import sqlite3
 import sys
@@ -38,13 +39,22 @@ DIM = 1024  # BGE-M3 dense dim (see embedder.py); kept here so a warm-cache
 
 MERGE_TARGET_CHARS = 700
 SHRINK_GUARD = 0.9  # refuse to leave a rebuilt index with <90% of the prior video count (unless --force)
-# One content-addressed BGE-M3 vector cache shared by every politician's
-# build: TK/Handelingen debate text is byte-identical across politicians
-# (same shared transcripts -> same chunks -> same vectors), so after the
-# first politician populates it, every later rebuild is ~all cache hits and
-# pass 2 costs seconds instead of embedding hundreds of thousands of chunks
-# on CPU again. YouTube-ASR chunks are person-specific and simply never hit.
-EMB_CACHE_DB = SHARED_DIR / "emb_cache.sqlite"
+
+# --- content-addressed BGE-M3 vector cache -----------------------------------
+# TK/Handelingen debate text is byte-identical across politicians (same shared
+# transcripts -> same chunks -> same vectors), so a chunk is embedded once and
+# every later politician's build is ~all cache hits (no GPU, no torch).
+# Stored as flat numpy files, NOT sqlite: a multi-GB sqlite over NFS is
+# unusably slow to scan; np.load of a contiguous array is a fast sequential
+# read. Layout under EMB_CACHE_DIR:
+#   main.keys.npy   (N, 20) uint8   -- sha1 digests
+#   main.vecs.npy   (N, DIM) float16
+#   pending/<tag>.keys.npy + .vecs.npy   -- lock-free per-run shards, folded
+#     into main by cache_compact() (orchestrator). Each writer uses a unique
+#     tag so parallel machines never touch the same file.
+# EMB_CACHE_DIR: set to a LOCAL path for builds (fast); the canonical copy on
+# the NFS share is the merge target + rsync source.
+EMB_CACHE_DIR = Path(os.environ.get("EMB_CACHE_DIR") or (SHARED_DIR / "emb_cache"))
 
 
 def iter_videos(transcripts_dir: Path):
@@ -132,36 +142,81 @@ def _video_count(db_path: Path) -> int | None:
         return None
 
 
-def cache_lookup(hashes: list[bytes], db: Path | None = None) -> dict[bytes, bytes]:
-    """{sha1 -> fp16 vector bytes} for the hashes already in the shared cache."""
-    con = sqlite3.connect(db or EMB_CACHE_DB, timeout=60)
-    try:
-        con.execute("PRAGMA busy_timeout=60000")
-        con.execute("CREATE TABLE IF NOT EXISTS cache (h BLOB PRIMARY KEY, v BLOB) WITHOUT ROWID")
-        con.commit()
-        have: dict[bytes, bytes] = {}
-        uniq = list(set(hashes))
-        for k in range(0, len(uniq), 900):
-            part = uniq[k : k + 900]
-            rows = con.execute(
-                f"SELECT h, v FROM cache WHERE h IN ({','.join('?' * len(part))})", part
-            )
-            have.update(rows)
-        return have
-    finally:
-        con.close()
+def _cache_shards() -> list[Path]:
+    """Stems (path without .keys.npy / .vecs.npy) for main + every pending shard."""
+    d = EMB_CACHE_DIR
+    stems = []
+    if (d / "main.keys.npy").exists():
+        stems.append(d / "main")
+    pend = d / "pending"
+    if pend.exists():
+        stems += sorted(p.with_name(p.name[:-9]) for p in pend.glob("*.keys.npy"))
+    return stems
 
 
-def cache_store(pairs: dict[bytes, bytes], db: Path | None = None) -> None:
+def cache_lookup(hashes: list[bytes]) -> dict[bytes, np.ndarray]:
+    """{sha1 digest -> fp16 (DIM,) vector} for hashes present in the cache."""
+    want = set(hashes)
+    have: dict[bytes, np.ndarray] = {}
+    for stem in _cache_shards():
+        keys = np.load(f"{stem}.keys.npy")  # (n, 20) uint8
+        kb = keys.tobytes()
+        rows = [i for i in range(len(keys))
+                if kb[i * 20:(i + 1) * 20] in want and kb[i * 20:(i + 1) * 20] not in have]
+        if not rows:
+            continue
+        vecs = np.load(f"{stem}.vecs.npy", mmap_mode="r")
+        for i in rows:
+            have[kb[i * 20:(i + 1) * 20]] = np.array(vecs[i])
+    return have
+
+
+def cache_store(pairs: dict[bytes, bytes], tag: str = "run") -> None:
+    """Write one lock-free pending shard from {sha1 digest: fp16 vector bytes}."""
     if not pairs:
         return
-    con = sqlite3.connect(db or EMB_CACHE_DB, timeout=60)
-    try:
-        con.execute("PRAGMA busy_timeout=60000")
-        con.executemany("INSERT OR IGNORE INTO cache (h, v) VALUES (?, ?)", list(pairs.items()))
-        con.commit()
-    finally:
-        con.close()
+    pend = EMB_CACHE_DIR / "pending"
+    pend.mkdir(parents=True, exist_ok=True)
+    keys = np.frombuffer(b"".join(pairs.keys()), dtype=np.uint8).reshape(-1, 20)
+    vecs = np.frombuffer(b"".join(pairs.values()), dtype=np.float16).reshape(-1, DIM)
+    ts = f"{tag}-{int(time.time())}-{os.getpid()}"
+    for name, arr in ((f"{ts}.keys.npy", keys), (f"{ts}.vecs.npy", vecs)):
+        tmp = pend / (name + ".writing")
+        with open(tmp, "wb") as fh:
+            np.save(fh, arr)
+        os.replace(tmp, pend / name)
+
+
+def cache_compact() -> int:
+    """Fold every pending/ shard into main.{keys,vecs}.npy (dedup, first wins)
+    and delete the pending shards. Run by the orchestrator, single-writer."""
+    stems = _cache_shards()
+    if not stems or (len(stems) == 1 and stems[0].name == "main"):
+        return 0
+    seen: set[bytes] = set()
+    kparts, vparts = [], []
+    for stem in stems:
+        keys = np.load(f"{stem}.keys.npy")
+        vecs = np.load(f"{stem}.vecs.npy")
+        kb = keys.tobytes()
+        keep = [i for i in range(len(keys)) if kb[i * 20:(i + 1) * 20] not in seen
+                and not seen.add(kb[i * 20:(i + 1) * 20])]
+        if keep:
+            kparts.append(keys[keep])
+            vparts.append(vecs[keep])
+    main_k = np.concatenate(kparts) if kparts else np.empty((0, 20), np.uint8)
+    main_v = np.concatenate(vparts) if vparts else np.empty((0, DIM), np.float16)
+    d = EMB_CACHE_DIR
+    for name, arr in (("main.keys.npy", main_k), ("main.vecs.npy", main_v)):
+        tmp = d / (name + ".writing")
+        with open(tmp, "wb") as fh:
+            np.save(fh, arr)
+        os.replace(tmp, d / name)
+    for stem in stems:
+        if stem.name != "main":
+            for ext in (".keys.npy", ".vecs.npy"):
+                Path(f"{stem}{ext}").unlink(missing_ok=True)
+    return len(main_k)
 
 
 def backup_and_prune_index(index_dir: Path) -> None:
@@ -241,20 +296,17 @@ def _embed_misses(all_texts, hashes, emb, miss):
 
 
 def warm_cache_main():
-    """Embed EVERY chunk in the shared pool into emb_cache.sqlite, so later
-    build_index runs are 100% cache hits and need no GPU. --shard i/n splits
-    the pool across machines; each shard writes its own cache file, merge with
-    `sqlite3 emb_cache.sqlite '.dump'`-style INSERT OR IGNORE afterwards."""
+    """Embed every chunk in the shared pool into EMB_CACHE_DIR so later
+    build_index runs are 100% cache hits (no GPU). --shard i/n splits the pool
+    across machines; each writes its own pending/ shard, cache_compact() folds
+    them into main afterwards."""
     shard = (0, 1)
     if "--shard" in sys.argv:
         i, n = sys.argv[sys.argv.index("--shard") + 1].split("/")
         shard = (int(i), int(n))
-    cache_out = EMB_CACHE_DB
-    if "--cache-out" in sys.argv:
-        cache_out = Path(sys.argv[sys.argv.index("--cache-out") + 1])
 
     pool = SHARED_DIR / "transcripts"
-    print(f"warm-cache: shard {shard[0]}/{shard[1]} of {pool} -> {cache_out}", flush=True)
+    print(f"warm-cache: shard {shard[0]}/{shard[1]} of {pool} -> {EMB_CACHE_DIR}", flush=True)
     all_texts = []
     for base, _meta, transcript in iter_videos(pool):
         if int(hashlib.sha1(base.encode()).hexdigest(), 16) % shard[1] != shard[0]:
@@ -264,21 +316,18 @@ def warm_cache_main():
     print(f"  {len(all_texts)} chunks in this shard", flush=True)
 
     hashes = [hashlib.sha1(t.encode("utf-8")).digest() for t in all_texts]
-    # look up against BOTH the canonical cache and this shard's own output, so
-    # a resumed run skips work already done
-    have = cache_lookup(hashes)
-    have.update(cache_lookup([h for h in hashes if h not in have], db=cache_out))
+    have = cache_lookup(hashes)  # skip anything already cached (resumable)
     miss = [i for i, h in enumerate(hashes) if h not in have]
     print(f"  {len(all_texts) - len(miss)} already cached, {len(miss)} to embed", flush=True)
     if not miss:
         return
     emb = np.zeros((len(all_texts), DIM), dtype=np.float16)
     _embed_misses(all_texts, hashes, emb, miss)
-    cache_store({hashes[i]: emb[i].tobytes() for i in miss}, db=cache_out)
-    print(f"  stored {len(miss)} vectors to {cache_out}", flush=True)
+    cache_store({hashes[i]: emb[i].tobytes() for i in miss}, tag=f"warm{shard[0]}of{shard[1]}")
+    print(f"  stored {len(miss)} vectors", flush=True)
 
 
-FLAG_VALUES = {"--shard", "--cache-out"}  # flags that take a following value
+FLAG_VALUES = {"--shard"}  # flags that take a following value
 
 
 def _positionals(argv: list[str]) -> list[str]:
@@ -297,6 +346,10 @@ def _positionals(argv: list[str]) -> list[str]:
 def main():
     if "--warm-cache" in sys.argv:
         return warm_cache_main()
+    if "--compact-cache" in sys.argv:
+        n = cache_compact()
+        print(f"cache compacted -> {n} vectors in {EMB_CACHE_DIR}/main.*.npy")
+        return
     pos = _positionals(sys.argv[1:])
     force = "--force" in sys.argv
     cfg = load_config(pos[0] if pos else None)
@@ -368,16 +421,18 @@ def main():
     hashes = [hashlib.sha1(t.encode("utf-8")).digest() for t in all_texts]
     emb = np.zeros((len(all_texts), DIM), dtype=np.float16)
     have = cache_lookup(hashes)
-    miss = [i for i, h in enumerate(hashes) if h not in have]
+    miss = []
     for i, h in enumerate(hashes):
         v = have.get(h)
-        if v is not None:
-            emb[i] = np.frombuffer(v, dtype=np.float16)
+        if v is None:
+            miss.append(i)
+        else:
+            emb[i] = v
     print(f"  cache: {len(all_texts) - len(miss)} hit, {len(miss)} to embed", flush=True)
 
     if miss:
         _embed_misses(all_texts, hashes, emb, miss)
-        cache_store({hashes[i]: emb[i].tobytes() for i in miss})
+        cache_store({hashes[i]: emb[i].tobytes() for i in miss}, tag="build")
 
     np.save(paths["index"] / "embeddings.npy", emb)
     db.close()
