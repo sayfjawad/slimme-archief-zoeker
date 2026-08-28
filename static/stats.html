@@ -55,7 +55,7 @@ th{background:var(--accent-soft);font-size:.8rem}
     <a class="back" href="/" data-i18n="back">&larr; Terug naar zoeken</a>
     <button id="lang-toggle">English</button>
   </div>
-  <h1 data-i18n="title">Gebruiksstatistieken</h1>
+  <h1><span data-i18n="title">Gebruiksstatistieken</span> <span id="person-name" class="muted"></span></h1>
   <div class="muted" id="since"></div>
 
   <div class="cards">
@@ -105,16 +105,25 @@ const I18N = {
     noData:'No activity in this period.', langBtn:'Nederlands',
   }
 };
-let lang = new URLSearchParams(location.search).get('lang') || localStorage.getItem('lang') || 'nl';
+const params = new URLSearchParams(location.search);
+let lang = params.get('lang') || localStorage.getItem('lang') || 'nl';
 if(!I18N[lang]) lang = 'nl';
 const t = k => I18N[lang][k];
+const person = params.get('person');   // which politician's usage to show
 let data = null;
+
+// keep the politician in the URL through the "back" link and the lang toggle
+if(person){
+  const back = $('#back') || document.querySelector('a.back');
+  if(back) back.href = '/?person=' + encodeURIComponent(person);
+}
 
 function applyLang(){
   document.documentElement.lang = lang;
   document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = t(el.dataset.i18n); });
   $('#lang-toggle').textContent = t('langBtn');
   document.title = `${t('title')} — ${(data && data.person) || ''}`.trim();
+  $('#person-name').textContent = (data && data.person) ? '· ' + data.person : '';
   $('#since').textContent = t('since')(data && data.since);
   if(data) renderTable();
 }
@@ -173,7 +182,7 @@ function renderChart(){
   });
 }
 
-fetch('/api/statistics').then(r=>r.json()).then(d=>{
+fetch('/api/statistics' + (person ? '?person=' + encodeURIComponent(person) : '')).then(r=>r.json()).then(d=>{
   data = d;
   const set=(id,v)=>document.getElementById(id).textContent=(v??0).toLocaleString();
   set('total', d.total_queries); set('ips', d.unique_ips);

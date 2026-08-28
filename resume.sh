@@ -79,6 +79,13 @@ for spec in $PERSONS; do
   fi
 done
 
+# 4b. combined multi-politician app (politicus.zoek-r.nl). systemd-enabled so
+# it auto-starts on boot like the per-person units; this only covers a manual
+# resume. It loads every politician's index in one process.
+ssh sayf@100.64.0.13 sudo systemctl start politicus-search 2>/dev/null \
+  && echo "  politicus-search ensured up (@c4130)" \
+  || echo "  ssh start politicus-search faalde (c4130 unreachable of unit bestaat nog niet?)"
+
 # 5. milestone watchers (Wilders-only mail milestones for now; see
 # milestone_watch.sh -- not yet generalized per person)
 for m in text youtube video; do

@@ -35,6 +35,12 @@ body{margin:0;background:var(--bg);color:var(--ink);
   background:rgba(10,12,18,.35);color:#fff;border:1px solid rgba(255,255,255,.35);
   border-radius:20px;padding:6px 16px;font-size:.85rem;cursor:pointer}
 #lang-toggle:hover{background:rgba(10,12,18,.6)}
+.person-picker{margin:6px 0 2px;display:flex;align-items:center;gap:8px;
+  font-size:.9rem;color:#c9d2e8}
+#person-select{font:inherit;font-size:.95rem;font-weight:600;color:#fff;
+  background:rgba(10,12,18,.35);border:1px solid rgba(255,255,255,.35);
+  border-radius:10px;padding:6px 12px;cursor:pointer;max-width:100%}
+#person-select option{color:#1e2430;background:#fff}
 @media (max-width:700px){
   .hero{flex-direction:column;align-items:stretch;gap:16px;padding:20px 18px}
   .hero h1{font-size:1.25rem;padding-inline-end:90px} .hero .tagline{font-size:.85rem}
@@ -115,13 +121,17 @@ tr.cited td{border-inline-start:3px solid var(--accent)}
     <button id="lang-toggle">English</button>
     <div class="hero-text">
       <h1><span data-i18n="heroTitle">Archief</span> <span class="badge" id="count-badge"></span></h1>
+      <div class="person-picker" id="person-picker" style="display:none">
+        <label for="person-select" data-i18n="pickPerson">Politicus:</label>
+        <select id="person-select"></select>
+      </div>
       <p class="tagline" data-i18n="heroTagline"></p>
     </div>
     <img class="hero-img" id="hero-img" alt="" data-i18n-alt="heroAlt" style="display:none">
   </header>
 
   <div class="sub"><span data-i18n="sub">Slim semantisch zoeken in officiële Tweede Kamer-verslagen en transcripties van openbare video's — stel een vraag of zoek een onderwerp, en krijg de fragmenten met datum, tijdstip en afspeellinks.</span>
-    <a href="/stats.html" style="color:var(--accent)" data-i18n="statsLink">📊 Statistieken</a></div>
+    <a id="statsLink" href="/stats.html" style="color:var(--accent)" data-i18n="statsLink">📊 Statistieken</a></div>
 
   <div class="searchbar">
     <input type="text" id="q" autofocus>
@@ -217,6 +227,7 @@ const I18N = {
     sub:"Slim semantisch zoeken in officiële Tweede Kamer-verslagen en transcripties van openbare video's — stel een vraag of zoek een onderwerp, en krijg de fragmenten met datum, tijdstip en afspeellinks.",
     placeholder:'bijv. wat zei hij over de hypotheekrenteaftrek? / asielbeleid / kernenergie…',
     btnAsk:'🤖 Vraag de AI', btnSearch:'🔍 Alleen zoeken',
+    pickPerson:'Politicus:', statsLink:'📊 Statistieken',
     onlyPerson:p=>`alleen uitspraken van ${p}`,
     from:'van', to:'tot', topk:'resultaten',
     thDate:'Datum', thTime:'Tijd', thText:'Tekst & afspelen', thSource:'Bron',
@@ -241,6 +252,7 @@ const I18N = {
     sub:'Smart semantic search across official parliamentary transcripts and AI transcriptions of public videos — ask a question or search a topic, and get the fragments with date, timestamp and playback links. (The archive is in Dutch; Dutch queries give the best results.)',
     placeholder:'e.g. what did he say about mortgage interest deduction? / asylum policy…',
     btnAsk:'🤖 Ask the AI', btnSearch:'🔍 Search only',
+    pickPerson:'Politician:', statsLink:'📊 Statistics',
     onlyPerson:p=>`only statements by ${p}`,
     from:'From', to:'To', topk:'Results',
     thDate:'Date', thTime:'Time', thText:'Text & playback', thSource:'Source',
@@ -267,6 +279,35 @@ const resolve = v => typeof v === 'function' ? v(personName()) : v;
 
 let stats = null;
 let lastStatus = null;
+
+/* ---------------- politician selector ---------------- */
+// ?person= wins, then the last choice, then the server default (set once
+// /api/persons is in). Kept in the URL so a link is shareable.
+let selectedPerson = new URLSearchParams(location.search).get('person')
+                  || localStorage.getItem('person') || null;
+
+function setPersonInUrl(slug){
+  const u = new URL(location.href);
+  u.searchParams.set('person', slug);
+  history.replaceState(null, '', u);
+}
+
+async function loadPerson(slug, {rerun = false} = {}){
+  selectedPerson = slug;
+  localStorage.setItem('person', slug);
+  setPersonInUrl(slug);
+  const sel = $('#person-select');
+  if(sel && sel.value !== slug) sel.value = slug;
+  try{
+    stats = await (await fetch('/api/stats?person=' + encodeURIComponent(slug))).json();
+  }catch(e){ return; }
+  const img = $('#hero-img');
+  if(stats.hero_image){ img.src = '/' + stats.hero_image; img.style.display = ''; }
+  else { img.style.display = 'none'; }
+  $('#statsLink') && ($('#statsLink').href = 'stats.html?person=' + encodeURIComponent(slug));
+  applyLang();
+  if(rerun && $('#q').value.trim()) run(lastRunMode || 'search');
+}
 
 function applyLang(){
   document.documentElement.lang = lang;
@@ -308,9 +349,12 @@ function dateVal(id){ const v=$(id).value; return v ? v.replaceAll('-','') : nul
 function setStatus(key, n){ lastStatus = {key, n};
   $('#status').textContent = key==='statusCount' ? t('statusCount')(n) : t(key); }
 
+let lastRunMode = null;
+
 async function run(mode){
   const query = $('#q').value.trim();
   if(!query) return;
+  lastRunMode = mode;
   $('#btn-ask').disabled = $('#btn-search').disabled = true;
   stopPlayer();
   $('#results tbody').innerHTML='';
@@ -318,7 +362,8 @@ async function run(mode){
   setStatus(mode==='ask' ? 'statusAsking' : 'statusSearching');
   $('#results').style.display='none';
   try{
-    const body = {top_k:+$('#topk').value, date_from:dateVal('#date-from'), date_to:dateVal('#date-to'),
+    const body = {person:selectedPerson, top_k:+$('#topk').value,
+                  date_from:dateVal('#date-from'), date_to:dateVal('#date-to'),
                   only_person:$('#only-person').checked};
     let data;
     if(mode==='ask'){
@@ -455,16 +500,20 @@ $('#btn-ask').onclick = ()=>run('ask');
 $('#btn-search').onclick = ()=>run('search');
 $('#q').addEventListener('keydown',e=>{ if(e.key==='Enter') run(e.ctrlKey?'search':'ask'); });
 
-fetch('/api/stats').then(r=>r.json()).then(d=>{
-  stats = d;
-  $('#count-badge').textContent = t('badge')(d.videos, d.chunks);
-  if(d.hero_image){
-    const img = $('#hero-img');
-    img.src = '/' + d.hero_image;
-    img.style.display = '';
-  }
-  applyLang();  // re-apply now that the person's name is known
-}).catch(()=>{});
+$('#person-select').addEventListener('change', e => loadPerson(e.target.value, {rerun:true}));
+
+fetch('/api/persons').then(r=>r.json()).then(d=>{
+  const persons = d.persons || [];
+  const sel = $('#person-select');
+  sel.innerHTML = persons.map(p =>
+    `<option value="${p.slug}">${esc(p.person)}</option>`).join('');
+  const slugs = persons.map(p=>p.slug);
+  if(!slugs.includes(selectedPerson)) selectedPerson = d.default || slugs[0] || null;
+  // only show the picker when there's an actual choice to make
+  $('#person-picker').style.display = persons.length > 1 ? '' : 'none';
+  if(selectedPerson){ sel.value = selectedPerson; loadPerson(selectedPerson); }
+  else applyLang();
+}).catch(()=>{ applyLang(); });
 
 applyLang();
 </script>
