@@ -173,7 +173,9 @@ def start_build(slug: str, worker: str) -> None:
     fh = open(logf, "ab")
     fh.write(f"\n===== {now()}  onboarding {slug} on {worker} =====\n".encode())
     fh.flush()
-    env = f"EMB_CACHE_DIR={EMB_CACHE_LOCAL} HF_HOME=/data/huggingface ONBOARD_SKIP_BACKUP=1"
+    gpu = "1" if worker == "z8" else "0"   # z8 GPU0 is often busy; c4130 GPU0 is the free one
+    env = (f"EMB_CACHE_DIR={EMB_CACHE_LOCAL} HF_HOME=/data/huggingface "
+           f"ONBOARD_SKIP_BACKUP=1 CUDA_VISIBLE_DEVICES={gpu}")
     if worker == "c4130":
         # foreground (no setsid): if the orchestrator dies the ssh dies and the
         # remote onboard_politician dies with it -- reconcile() then resets the

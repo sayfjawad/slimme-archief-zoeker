@@ -132,10 +132,11 @@ def main():
     cfg_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {cfg_path}:\n{cfg_path.read_text()}", flush=True)
 
-    # GPU 0 on c4130 is the free one (the other three run gpt-oss-120b); the
-    # nightly daily_sync build_index uses it too. Embedding 300k+ chunks on
-    # CPU is ~70 min; on the V100 it is a few minutes.
-    env = {**os.environ, "PERSON": slug, "HF_HOME": "/data/huggingface", "CUDA_VISIBLE_DEVICES": "0"}
+    # After the shared cache is warm, build_index does no embedding (100%
+    # hits) so no GPU is needed. If a chunk *does* miss, it embeds on
+    # CUDA_VISIBLE_DEVICES (caller sets it: 0 on c4130, 1 on hp-z8) or CPU.
+    env = {**os.environ, "PERSON": slug, "HF_HOME": "/data/huggingface"}
+    env.setdefault("CUDA_VISIBLE_DEVICES", "0")
     t0 = time.time()
 
     # ---- 3. make sure the shared transcript pool is complete. --all parses
