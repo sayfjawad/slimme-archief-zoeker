@@ -67,21 +67,22 @@ for spec in $PERSONS; do
     PERSON=$slug ./dg_distributed.sh
   fi
 
-  # 4. search app -- runs as a systemd SYSTEM service on c4130 (CPU-only);
-  # this just makes sure it is up after a manual resume.
-  index_db="$(PERSON=$slug python3 -c 'from pipeline_config import load_config; print(load_config()["_paths"]["index"] / "index.sqlite")')"
-  if [ -f "$index_db" ]; then
+  # 4. legacy per-person search app -- only if its unit is still ENABLED.
+  # Since the 2026-08-28 merge both <slug>-search units are disabled (the
+  # subdomains 301-redirect to politicus.zoek-r.nl) so this normally no-ops;
+  # the combined app is handled once, below.
+  if ssh sayf@100.64.0.13 systemctl is-enabled --quiet "$unit" 2>/dev/null; then
     ssh sayf@100.64.0.13 sudo systemctl start "$unit" 2>/dev/null \
       && echo "  app service ensured up ($unit @c4130)" \
       || echo "  ssh start $unit faalde (c4130 unreachable?)"
   else
-    echo "  no index yet for $slug; app not started"
+    echo "  $unit disabled/absent -- served by politicus-search"
   fi
 done
 
-# 4b. combined multi-politician app (politicus.zoek-r.nl). systemd-enabled so
-# it auto-starts on boot like the per-person units; this only covers a manual
-# resume. It loads every politician's index in one process.
+# 4b. combined multi-politician app (politicus.zoek-r.nl) -- the one that
+# actually serves every politician now. systemd-enabled so it auto-starts on
+# boot; this only covers a manual resume.
 ssh sayf@100.64.0.13 sudo systemctl start politicus-search 2>/dev/null \
   && echo "  politicus-search ensured up (@c4130)" \
   || echo "  ssh start politicus-search faalde (c4130 unreachable of unit bestaat nog niet?)"

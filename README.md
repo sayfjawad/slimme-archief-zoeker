@@ -13,10 +13,10 @@ Live at **https://politicus.zoek-r.nl** — one app, the politician picked from
 a dropdown (`/api/persons` drives it; `?person=<slug>` deep-links). Currently
 Geert Wilders and Dilan Yeşilgöz.
 
-The per-politician subdomains still run from this same checkout in
-single-person mode (`PERSON=<slug>`, no dropdown) pending a redirect decision:
-- **https://wilders.scrib-r.com** — Geert Wilders
-- **https://yesilgoz.scrib-r.com** — Dilan Yeşilgöz
+The old per-politician subdomains **301-redirect** here (since 2026-08-28):
+`wilders.scrib-r.com` → `?person=wilders`, `yesilgoz.scrib-r.com` →
+`?person=yesilgoz`. The `<slug>-search` units still exist on disk but are
+stopped and disabled.
 
 Same architecture and transcript/index format as
 [abo-ali-search](https://github.com/sayfjawad/abo-ali-search).
@@ -180,24 +180,25 @@ always be verified against the original.
 
 ## Deployment
 
+- Checkout lives at `/data/politicus-search` on the GPU host (c4130).
 - **Combined app**: one systemd service `politicus-search` (port 8905, no
   `PERSON=` env) serves every `config/*.json`; the visitor picks the politician
-  from a dropdown. Unit + edge nginx vhost are in `deploy/`. Runs on the GPU
-  host (c4130), CPU-only search, RAG via the shared llama.cpp server.
-- **Per-politician subdomains** (legacy, still live): `<slug>-search` units
-  from the *same checkout* with `PERSON=<slug>` set, which pins the process to
-  one politician (only their index loaded, no dropdown) — behaviour identical
-  to before the merge. `wilders-search` (8902), `yesilgoz-search` (8903).
+  from a dropdown. Unit + edge nginx vhost are in `deploy/`. CPU-only search,
+  RAG via the shared llama.cpp server.
+- **`PERSON=<slug>` env** pins a process to one politician (only their index
+  loaded, no dropdown, cross-person requests 404). The legacy `<slug>-search`
+  units used this; they are now stopped + disabled (kept on disk) and the
+  subdomains 301-redirect to `politicus.zoek-r.nl`.
 - A small edge VPS (`vmi2702091`) runs nginx with TLS (certbot) and proxies
-  each hostname to the GPU host over a private Tailscale network, with
-  streaming-friendly proxy settings for the media endpoints.
-- After any person's index is rebuilt, `ship_index.sh <slug>` restarts both
-  that person's legacy unit and `politicus-search` (which reloads every
-  index). `resume.sh` also ensures `politicus-search` is up.
+  `politicus.zoek-r.nl` to the GPU host over a private Tailscale network, with
+  streaming-friendly proxy settings for the media endpoint.
+- After any person's index is rebuilt, `ship_index.sh <slug>` restarts every
+  *enabled* search unit that serves it — normally just `politicus-search`,
+  which reloads every politician's index. `resume.sh` also ensures it is up.
 - Onboarding a new politician: add `config/<slug>.json` + build their index,
-  then just restart `politicus-search` — they appear in the dropdown. A
-  dedicated subdomain (optional) additionally needs a `<slug>-search` unit +
-  nginx vhost.
+  then restart `politicus-search` — they appear in the dropdown. A dedicated
+  subdomain (optional) additionally needs a `<slug>-search` unit
+  (`Environment=PERSON=<slug>`) + nginx vhost.
 
 ## Gotchas worth knowing
 

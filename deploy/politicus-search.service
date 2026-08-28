@@ -17,7 +17,7 @@ Wants=network-online.target
 Type=simple
 User=sayf
 Group=sayf
-WorkingDirectory=/data/wilders-search
+WorkingDirectory=/data/politicus-search
 Environment=PORT=8905
 Environment=HF_HOME=/data/huggingface
 Environment=CUDA_VISIBLE_DEVICES=

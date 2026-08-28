@@ -6,18 +6,18 @@
 #
 # Usage: ship_index.sh <slug>   (e.g. wilders, yesilgoz)
 #
-# Restarts:
-#   - <slug>-search        the legacy single-person unit, if it still exists
-#   - politicus-search     the combined multi-politician app, if it exists
-#     (it reloads EVERY politician's index on start, so one restart after any
-#     person's rebuild is enough -- a few redundant restarts a night are fine)
+# Restarts every ENABLED search unit that would serve this rebuild:
+#   - politicus-search   the combined multi-politician app (reloads EVERY
+#     politician's index on start, so one restart after any person's rebuild
+#     is enough -- a few redundant restarts a night are harmless)
+#   - <slug>-search      the legacy single-person unit, only if still enabled
+#     (both are disabled since the 2026-08-28 merge -> the subdomains now
+#     301-redirect to politicus.zoek-r.nl -- so this normally no-ops)
 set -u
 slug=${1:?usage: ship_index.sh <slug>}
 
-unit_exists() { systemctl list-unit-files "$1.service" --no-legend | grep -q .; }
-
-for unit in "$slug-search" politicus-search; do
-  if unit_exists "$unit"; then
+for unit in politicus-search "$slug-search"; do
+  if systemctl is-enabled --quiet "$unit" 2>/dev/null; then
     sudo systemctl restart "$unit" && echo "restarted $unit" || echo "FAILED restart $unit"
   fi
 done
