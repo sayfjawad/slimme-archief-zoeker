@@ -122,11 +122,13 @@ def vergadering_meta(root) -> dict:
     }
 
 
-def parse_verslag(xml_path: Path, verslag_id: str, match: dict) -> tuple[dict, dict] | None:
-    """Return (transcript, metadata) or None when the person does not speak."""
+def parse_verslag(xml_path: Path, verslag_id: str, match: dict | None) -> tuple[dict, dict] | None:
+    """Return (transcript, metadata), or None when there are no segments or
+    (when `match` is given) the person does not speak. match=None -> keep
+    every vergadering regardless of who spoke (pool pre-population)."""
     root = ET.parse(xml_path).getroot()
     raw = extract_segments(root)
-    if not raw or not person_speaks(raw, match):
+    if not raw or (match is not None and not person_speaks(raw, match)):
         return None
 
     times = [s["begin"] for s in raw if s["begin"]]
@@ -177,10 +179,12 @@ def best_per_vergadering(state: dict) -> dict:
 
 
 def main():
-    cfg = load_config(sys.argv[1] if len(sys.argv) > 1 else None)
+    pos = [a for a in sys.argv[1:] if not a.startswith("--")]
+    parse_all = "--all" in sys.argv  # pool pre-population: keep every debate
+    cfg = load_config(pos[0] if pos else None)
     ensure_dirs(cfg)
     paths = cfg["_paths"]
-    match = cfg["tk"]["match"]
+    match = None if parse_all else cfg["tk"]["match"]
 
     state = json.loads(paths["tk_state"].read_text()) if paths["tk_state"].exists() else {}
     chosen = best_per_vergadering(state)
@@ -201,6 +205,7 @@ def main():
     # vergadering already parsed (by this or any other tracked person's run)
     # is reused as-is rather than reparsed -- same debate, same content.
     written = skipped = reused = 0
+    new_speakers: set[str] = set()
     for verg, verslag_id in sorted(chosen.items()):
         if verslag_id not in existing_xml:
             continue
@@ -215,6 +220,7 @@ def main():
         transcript, metadata = result
         base = f"tk_{metadata['upload_date'] or 'nodate'}_{verslag_id[:8]}"
         metadata["speakers"] = sorted({s["speaker"] for s in transcript["segments"] if s.get("speaker")})
+        new_speakers.update(metadata["speakers"])
         (paths["shared_transcripts"] / f"{base}.json").write_text(
             json.dumps(transcript, ensure_ascii=False), encoding="utf-8"
         )
@@ -222,8 +228,19 @@ def main():
             json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         written += 1
-        print(f"wrote {base} ({len(transcript['segments'])} segments)")
-    print(f"done: {written} new, {reused} already in shared pool, {skipped} without {cfg['person']}")
+        if written % 200 == 0:
+            print(f"  wrote {written}...", flush=True)
+    who = "no segments" if parse_all else f"without {cfg['person']}"
+    print(f"done: {written} new, {reused} already in shared pool, {skipped} {who}")
+
+    if parse_all:
+        # manifest of every speaker in the debates added this run -- daily_sync
+        # rebuilds only the politicians who appear in it, not all ~100.
+        (paths["shared_transcripts"].parent / "last_parse_new.json").write_text(
+            json.dumps({"date": datetime.now().strftime("%Y-%m-%d"),
+                        "written": written, "new_speakers": sorted(new_speakers)}),
+            encoding="utf-8",
+        )
 
 
 if __name__ == "__main__":

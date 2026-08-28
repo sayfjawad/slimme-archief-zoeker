@@ -14,6 +14,12 @@ QUEUE=data/onboarding_queue.csv
 PY=/data/abo-ali-search/.venv/bin/python3
 [ -f "$QUEUE" ] || { echo "no $QUEUE -- run rank_speakers.py + build_onboarding_queue.py first"; exit 1; }
 
+# Pre-populate the SHARED transcript pool with EVERY debate once, so each
+# politician's onboarding is a pure set-diff instead of re-parsing thousands
+# of not-yet-pooled debates. Idempotent; ~15 min the first time, seconds after.
+echo "=== pre-populating shared transcript pool (tk_parse --all) ==="
+flock /tmp/daily_sync.lock sh -c "$PY tk_sync.py && $PY tk_parse.py --all"
+
 done_count=0
 new_slugs=()
 # columns: rank,slug,verslagnaam,voornaam,match_achternaam,...

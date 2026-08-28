@@ -132,9 +132,12 @@ def main():
     env = {**os.environ, "PERSON": slug, "HF_HOME": "/data/huggingface", "CUDA_VISIBLE_DEVICES": "0"}
     t0 = time.time()
 
-    # ---- 3. grow the shared transcript pool with this person's debates
-    run([PY, "tk_sync.py", slug], env)      # cheap: shared cursor, usually a no-op
-    run([PY, "tk_parse.py", slug], env)
+    # ---- 3. make sure the shared transcript pool is complete. --all parses
+    # every not-yet-pooled debate once (keeping all speakers); after the first
+    # politician this is a fast set-diff. Cheaper + simpler than a per-person
+    # re-scan, and it means this person's index has the full pool to filter.
+    run([PY, "tk_sync.py", slug], env)
+    run([PY, "tk_parse.py", "--all"], env)
 
     # ---- 4. build only this person's index
     run([PY, "build_index.py", slug], env)

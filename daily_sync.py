@@ -27,9 +27,23 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from pipeline_config import load_config
+from pipeline_config import load_config, SHARED_DIR
 
 VENV_PY = sys.executable  # pipeline venv on this host (whisperx + pipeline deps)
+
+
+def person_matches(speakers: list[str], cfg: dict) -> bool:
+    """Same substring convention as build_index.person_matches / tk_parse."""
+    tk = cfg.get("tk", {}).get("match", {})
+    achter, voor = (tk.get("achternaam") or "").lower(), (tk.get("voornaam") or "").lower()
+    ob_naam = (cfg.get("ob", {}).get("match_naam") or "").lower()
+    for name in speakers:
+        n = name.lower()
+        if achter and achter in n and (not voor or voor in n):
+            return True
+        if ob_naam and ob_naam in n:
+            return True
+    return False
 SHRINK_GUARD = 0.9  # refuse to go live if the new index has <90% of the old video count
 
 
@@ -62,14 +76,24 @@ def count(glob_dir: Path, pattern: str) -> int:
     return sum(1 for _ in glob_dir.glob(pattern)) if glob_dir.exists() else 0
 
 
-def sync_person(slug: str) -> tuple[str, bool, int]:
-    """Returns (report text, any_failure, total_new_items)."""
+def sync_person(slug: str, new_tk_speakers: list[str]) -> tuple[str, bool, int]:
+    """Returns (report text, any_failure, total_new_items).
+
+    The shared TK verslag pool is parsed once by main() (tk_parse.py --all),
+    NOT per person -- with ~100 configs a per-person re-scan of every
+    not-yet-pooled debate would dominate the nightly run. `new_tk_speakers`
+    is the speaker union of whatever debates that one pass added; this person
+    counts a TK delta iff their match name is in it.
+    """
     env = {**os.environ, "PERSON": slug}
     cfg = load_config(slug)
     p = cfg["_paths"]
     lines = [f"=== {slug} ==="]
     any_fail = False
-    total_new = 0
+    total_new = 1 if person_matches(new_tk_speakers, cfg) else 0
+    if total_new:
+        lines.append(f"[OK] tk: in {sum(person_matches([s], cfg) for s in new_tk_speakers)} "
+                     f"newly-parsed debate speaker-set(s)")
 
     # Text-only bulk configs (config/<slug>.json with no "ob"/"youtube"
     # section) skip Handelingen, YouTube and debate-video downloads entirely
@@ -80,10 +104,7 @@ def sync_person(slug: str) -> tuple[str, bool, int]:
     has_youtube = bool((cfg.get("youtube") or {}).get("channels"))
     text_only = not has_ob and not has_youtube
 
-    steps = [
-        ("tk_sync", [sys.executable, "tk_sync.py"], 1800),
-        ("tk_parse", [sys.executable, "tk_parse.py"], 900),
-    ]
+    steps = []
     if has_ob:
         steps += [
             ("ob_sync", [sys.executable, "ob_sync.py"], 1800),
@@ -208,9 +229,24 @@ def main():
 
     sections = []
     any_fail = False
+
+    # --- shared TK pool: sync + parse ONCE for everyone (not per person)
+    tk_env = {**os.environ}
+    ok, last, dt, _ = run([sys.executable, "tk_sync.py"], tk_env, 1800)
+    sections.append(f"=== shared TK pool ===\n[{'OK' if ok else 'FAILED'}] tk_sync ({dt:.0f}s): {last}")
+    any_fail = any_fail or not ok
+    ok, last, dt, tail = run([sys.executable, "tk_parse.py", "--all"], tk_env, 3600)
+    sections[-1] += f"\n[{'OK' if ok else 'FAILED'}] tk_parse --all ({dt:.0f}s): {last}"
+    any_fail = any_fail or not ok
+    try:
+        manifest = json.loads((SHARED_DIR / "last_parse_new.json").read_text())
+        new_tk_speakers = manifest.get("new_speakers", []) if manifest.get("written") else []
+    except (OSError, ValueError):
+        new_tk_speakers = []
+
     totals = {}
     for slug in slugs:
-        text, fail, n = sync_person(slug)
+        text, fail, n = sync_person(slug, new_tk_speakers)
         sections.append(text)
         any_fail = any_fail or fail
         totals[slug] = n
