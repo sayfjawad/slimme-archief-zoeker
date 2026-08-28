@@ -120,7 +120,13 @@ def _epoch(iso: str) -> float:
 
 
 # --------------------------------------------------------------- prereqs
+_prereq_ok_until = 0.0
+
+
 def prereqs_ok() -> bool:
+    global _prereq_ok_until
+    if time.time() < _prereq_ok_until:
+        return True
     ok = True
     if not (EMB_CACHE_LOCAL / "main.keys.npy").exists():
         log(f"MISSING: {EMB_CACHE_LOCAL}/main.keys.npy on this host -- run the "
@@ -145,6 +151,8 @@ def prereqs_ok() -> bool:
         if "ok" not in r.stdout:
             log("backup_daily.sh did not produce today's backup -- refusing to build")
             ok = False
+    if ok:
+        _prereq_ok_until = time.time() + 1200  # re-verify at most every 20 min
     return ok
 
 

@@ -22,8 +22,10 @@ Environment=EMB_CACHE_LOCAL=/data/emb_cache
 Environment=Z8_PY=/data/git/gemeente-search/.venv/bin/python3
 Environment=C4130_HOST=sayf@100.64.0.13
 Environment=RESTART_EVERY=8
-ExecStartPre=/usr/bin/git -C /data/git/slimme-archief-zoeker pull -q --ff-only
+ExecStartPre=-/usr/bin/git -C /data/git/slimme-archief-zoeker pull -q --ff-only
 ExecStart=/data/git/gemeente-search/.venv/bin/python3 onboard_orchestrator.py
+StandardOutput=journal
+StandardError=journal
 Restart=always
 RestartSec=20
 
