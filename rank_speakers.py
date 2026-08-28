@@ -92,11 +92,12 @@ def main():
         xml_ids = xml_ids[:limit]
     print(f"scanning {len(xml_ids)} verslagen from {tk_dir}", flush=True)
 
-    # (verslagnaamKey, voornaamKey) -> {"voor", "verslag", "match_achter",
-    #   "fracties": Counter, "functies": Counter,
-    #   "years": {year: {"words", "turns", "days": set}}}
+    # key = (achternaam-raw casefold, first-voornaam casefold) -- <achternaam>
+    # is the stable structured field; <verslagnaam> varies ("Bosma" vs
+    # "Martin Bosma") and would fragment the tally. Display name + the
+    # config match are taken from the modal forms seen for the key.
     agg: dict = defaultdict(lambda: {
-        "voor": "", "verslag": "", "match_achter": "",
+        "voor": Counter(), "verslag": Counter(), "match_achter": Counter(),
         "fracties": Counter(), "functies": Counter(),
         "years": defaultdict(lambda: {"words": 0, "turns": 0, "days": set()}),
     })
@@ -117,9 +118,11 @@ def main():
         for voor, verslag, achter_raw, fractie, functie, words in walk_speeches(root):
             if verslag.casefold() in CHAIR or f"{voor} {verslag}".casefold().strip() in CHAIR:
                 continue
-            e = agg[(verslag.casefold(), voor.casefold().split(" ")[0] if voor else "")]
-            e["voor"], e["verslag"] = voor, verslag
-            e["match_achter"] = match_achternaam(achter_raw, verslag)
+            voor1 = voor.split()[0] if voor else ""
+            e = agg[((achter_raw or verslag).casefold(), voor1.casefold())]
+            e["voor"][voor1] += 1
+            e["verslag"][verslag] += 1
+            e["match_achter"][match_achternaam(achter_raw, verslag)] += 1
             if fractie:
                 e["fracties"][fractie] += 1
             if functie:
@@ -132,11 +135,15 @@ def main():
         if done % 2000 == 0:
             print(f"  {done}/{len(xml_ids)}", flush=True)
 
+    def modal(c: Counter) -> str:
+        return c.most_common(1)[0][0] if c else ""
+
     # ---- flatten
     by_year: dict[str, list] = defaultdict(list)
     overall: list = []
     for e in agg.values():
-        voor, verslag = e["voor"], e["verslag"]
+        voor, verslag = modal(e["voor"]), modal(e["verslag"])
+        e["match_achter"] = modal(e["match_achter"])
         fractie = e["fracties"].most_common(1)[0][0] if e["fracties"] else ""
         functie = e["functies"].most_common(1)[0][0] if e["functies"] else ""
         common = {"verslagnaam": verslag, "voornaam": voor,
