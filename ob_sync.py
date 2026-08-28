@@ -51,7 +51,10 @@ def sru_page(base: str, query: str, start: int) -> ET.Element:
 
 def main():
     cfg = load_config(sys.argv[1] if len(sys.argv) > 1 else None)
-    ob = cfg["ob"]
+    ob = cfg.get("ob")
+    if not ob:
+        print(f"no ob (Handelingen 1995-2013) config for {cfg['slug']}, skipping")
+        return
     # shared pool: an SRU search is per-person (filtered by name in the
     # query), but the downloaded XML itself is shared across everyone --
     # dest.exists() below means a document another person's run already

@@ -117,6 +117,9 @@ def parse_document(xml_path: Path, match_naam: str):
 
 def main():
     cfg = load_config(sys.argv[1] if len(sys.argv) > 1 else None)
+    if not cfg.get("ob"):
+        print(f"no ob (Handelingen 1995-2013) config for {cfg['slug']}, skipping")
+        return
     ensure_dirs(cfg)
     paths = cfg["_paths"]
     match_naam = cfg["ob"]["match_naam"]

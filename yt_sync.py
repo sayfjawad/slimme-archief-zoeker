@@ -32,10 +32,14 @@ def sync_channel(channel: dict, out_dir, archive) -> int:
 
 def main():
     cfg = load_config(sys.argv[1] if len(sys.argv) > 1 else None)
+    channels = (cfg.get("youtube") or {}).get("channels") or []
+    if not channels:
+        print(f"no youtube config for {cfg['slug']}, skipping")
+        return
     ensure_dirs(cfg)
     out_dir = cfg["_paths"]["youtube"]
     archive = out_dir / "archive.txt"
-    for channel in cfg["youtube"]["channels"]:
+    for channel in channels:
         rc = sync_channel(channel, out_dir, archive)
         if rc != 0:
             print(f"warning: yt-dlp exited {rc} for {channel['name']}", file=sys.stderr)
