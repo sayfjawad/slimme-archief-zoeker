@@ -330,11 +330,11 @@ def main() -> None:
                     sh(["ssh", C4130, f"pkill -f 'onboard_politician.py {slug}'"])
                 finish_build(slug, st)
 
-        # politicians built but not yet pushed live
+        # politicians built but not yet pushed live -- a politicus-search
+        # restart (~30s) doesn't disturb in-flight builds, so don't wait for a
+        # quiet moment (which may never come with 2 workers always busy)
         fresh = [s for s in done_now if not st["politicians"][s].get("served")]
-        if fresh and not _running and (
-            st["completed_since_restart"] >= RESTART_EVERY or not pending
-        ):
+        if fresh and (st["completed_since_restart"] >= RESTART_EVERY or not pending):
             restart_and_commit(st, fresh)
 
         # status heartbeat
