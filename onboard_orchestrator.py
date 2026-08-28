@@ -281,6 +281,12 @@ def restart_and_commit(st: dict, new_done: list[str]) -> None:
 def main() -> None:
     log(f"orchestrator up. repo={REPO} state={STATE_FILE}")
     st = load_state()
+    # nothing is tracked in _running yet, so any "building" entry is from a
+    # previous process -- let reconcile() sort it (done-on-disk -> done, else
+    # -> pending for a clean retry)
+    for p in st["politicians"].values():
+        if p.get("status") == "building":
+            p["status"] = "pending"
     warned_prereq = False
     last_fetch = 0.0
     while True:
