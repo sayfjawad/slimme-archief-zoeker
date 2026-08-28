@@ -44,12 +44,17 @@ for spec in $PERSONS; do
   IFS=: read -r slug unit <<< "$spec"
   echo "--- $slug"
 
+  # text-only bulk config (no "ob"/"youtube" section): TK verslag pool only,
+  # no Handelingen / YouTube / debate-video downloads.
+  text_only=$(env "PERSON=$slug" python3 -c 'import json,sys;from pipeline_config import load_config;c=load_config();print("1" if not c.get("ob") and not (c.get("youtube") or {}).get("channels") else "")')
+
   # 1. text sources (each chains its parser; both incremental; shared
   # tk_xml/ob_xml pool means a second person's tk_sync/ob_sync mostly just
   # re-lists already-downloaded XML, but tk_parse/ob_parse still need a run
   # per person to pull their own vergaderingen into the shared transcript pool)
   start_if_absent "PERSON=$slug python3 (tk_sync|tk_parse)\.py" \
     env "PERSON=$slug" bash -c 'python3 tk_sync.py && python3 tk_parse.py'
+  # ob_sync/ob_parse/yt_sync self-skip when their config section is absent
   start_if_absent "PERSON=$slug python3 (ob_sync|ob_parse)\.py" \
     env "PERSON=$slug" bash -c 'python3 ob_sync.py && python3 ob_parse.py'
 
@@ -61,7 +66,9 @@ for spec in $PERSONS; do
   # workers survive our reboots. One person's run at a time (dg_sync's
   # local shard pgrep-guard would otherwise let two persons' orchestrators
   # collide), so only start this person's run if no dg_sync is active at all.
-  if pgrep -f 'python3 dg_sync\.py' > /dev/null; then
+  if [ -n "$text_only" ]; then
+    echo "  text-only config -- no debate-video download for $slug"
+  elif pgrep -f 'python3 dg_sync\.py' > /dev/null; then
     echo "  dg_sync already running for another person; skip video run for $slug this pass"
   else
     PERSON=$slug ./dg_distributed.sh

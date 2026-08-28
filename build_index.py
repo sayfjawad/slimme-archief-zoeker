@@ -19,6 +19,7 @@ Two sources, per pipeline_config.py:
   - <data>/transcripts: this person's own YouTube ASR transcripts (yt_*),
     never shared with anyone else's index.
 """
+import hashlib
 import itertools
 import json
 import shutil
@@ -31,9 +32,17 @@ from pathlib import Path
 import numpy as np
 
 from embedder import Embedder, DIM
-from pipeline_config import load_config, ensure_dirs
+from pipeline_config import load_config, ensure_dirs, SHARED_DIR
 
 MERGE_TARGET_CHARS = 700
+SHRINK_GUARD = 0.9  # refuse to leave a rebuilt index with <90% of the prior video count (unless --force)
+# One content-addressed BGE-M3 vector cache shared by every politician's
+# build: TK/Handelingen debate text is byte-identical across politicians
+# (same shared transcripts -> same chunks -> same vectors), so after the
+# first politician populates it, every later rebuild is ~all cache hits and
+# pass 2 costs seconds instead of embedding hundreds of thousands of chunks
+# on CPU again. YouTube-ASR chunks are person-specific and simply never hit.
+EMB_CACHE_DB = SHARED_DIR / "emb_cache.sqlite"
 
 
 def iter_videos(transcripts_dir: Path):
@@ -108,6 +117,51 @@ def merge_segments(segments):
 BACKUP_RETENTION_DAYS = 14
 
 
+def _video_count(db_path: Path) -> int | None:
+    if not db_path.exists():
+        return None
+    try:
+        con = sqlite3.connect(db_path)
+        try:
+            return con.execute("SELECT COUNT(*) FROM videos").fetchone()[0]
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return None
+
+
+def cache_lookup(hashes: list[bytes]) -> dict[bytes, bytes]:
+    """{sha1 -> fp16 vector bytes} for the hashes already in the shared cache."""
+    con = sqlite3.connect(EMB_CACHE_DB, timeout=60)
+    try:
+        con.execute("PRAGMA busy_timeout=60000")
+        con.execute("CREATE TABLE IF NOT EXISTS cache (h BLOB PRIMARY KEY, v BLOB) WITHOUT ROWID")
+        con.commit()
+        have: dict[bytes, bytes] = {}
+        uniq = list(set(hashes))
+        for k in range(0, len(uniq), 900):
+            part = uniq[k : k + 900]
+            rows = con.execute(
+                f"SELECT h, v FROM cache WHERE h IN ({','.join('?' * len(part))})", part
+            )
+            have.update(rows)
+        return have
+    finally:
+        con.close()
+
+
+def cache_store(pairs: dict[bytes, bytes]) -> None:
+    if not pairs:
+        return
+    con = sqlite3.connect(EMB_CACHE_DB, timeout=60)
+    try:
+        con.execute("PRAGMA busy_timeout=60000")
+        con.executemany("INSERT OR IGNORE INTO cache (h, v) VALUES (?, ?)", list(pairs.items()))
+        con.commit()
+    finally:
+        con.close()
+
+
 def backup_and_prune_index(index_dir: Path) -> None:
     """Copy the current index.sqlite + embeddings.npy to
     <index_dir>/backups/<YYYY-MM-DD>/ before this run overwrites them, and
@@ -151,11 +205,17 @@ def find_media_file(youtube_dir: Path, base: str) -> str:
 
 
 def main():
-    cfg = load_config(sys.argv[1] if len(sys.argv) > 1 else None)
+    pos = [a for a in sys.argv[1:] if not a.startswith("--")]
+    force = "--force" in sys.argv
+    cfg = load_config(pos[0] if pos else None)
     ensure_dirs(cfg)
     paths = cfg["_paths"]
 
     backup_and_prune_index(paths["index"])
+    # the copy backup_and_prune_index just took (if any) is the "before" the
+    # shrink guard at the end compares against
+    guard_ref = paths["index"] / "backups" / date.today().isoformat() / "index.sqlite"
+    videos_before = _video_count(guard_ref)
 
     db_path = paths["index"] / "index.sqlite"
     if db_path.exists():
@@ -211,50 +271,80 @@ def main():
     db.commit()
     print(f"parsed {n_videos} videos -> {chunk_id} chunks", flush=True)
 
-    import torch
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    print(f"pass 2: embedding on {device}...", flush=True)
-    embedder = Embedder(device=device)
-    tok = embedder.tokenizer
-
-    lengths = [len(t) for t in all_texts]
-    order = np.argsort(lengths)
-    emb = np.zeros((len(all_texts), DIM), dtype=np.float16)
-
-    TOKEN_BUDGET = 16384
-    batch_idx: list[int] = []
-    batch_max_tok = 0
-    done = 0
     t0 = time.time()
+    print("pass 2: embedding (shared cache lookup first)...", flush=True)
+    hashes = [hashlib.sha1(t.encode("utf-8")).digest() for t in all_texts]
+    emb = np.zeros((len(all_texts), DIM), dtype=np.float16)
+    have = cache_lookup(hashes)
+    miss = [i for i, h in enumerate(hashes) if h not in have]
+    for i, h in enumerate(hashes):
+        v = have.get(h)
+        if v is not None:
+            emb[i] = np.frombuffer(v, dtype=np.float16)
+    print(f"  cache: {len(all_texts) - len(miss)} hit, {len(miss)} to embed", flush=True)
 
-    def flush():
-        nonlocal batch_idx, batch_max_tok, done
-        if not batch_idx:
-            return
-        texts = [all_texts[i] for i in batch_idx]
-        vecs = embedder.encode(texts).numpy().astype(np.float16)
-        emb[batch_idx] = vecs
-        done += len(batch_idx)
-        if done % 5000 < len(batch_idx):
-            rate = done / (time.time() - t0)
-            eta = (len(all_texts) - done) / max(rate, 1)
-            print(f"  {done}/{len(all_texts)}  {rate:.0f} chunks/s  eta {eta/60:.1f} min", flush=True)
-        batch_idx = []
+    if miss:
+        import torch
+        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        print(f"  embedding {len(miss)} chunks on {device}...", flush=True)
+        embedder = Embedder(device=device)
+        tok = embedder.tokenizer
+
+        order = [miss[k] for k in np.argsort([len(all_texts[i]) for i in miss])]
+        TOKEN_BUDGET = 16384
+        batch_idx: list[int] = []
         batch_max_tok = 0
+        done = 0
 
-    for i in order:
-        ntok = min(len(tok.encode(all_texts[i], add_special_tokens=True)), embedder.max_length)
-        new_max = max(batch_max_tok, ntok)
-        if batch_idx and new_max * (len(batch_idx) + 1) > TOKEN_BUDGET:
-            flush()
-            new_max = ntok
-        batch_idx.append(int(i))
-        batch_max_tok = new_max
-    flush()
+        def flush():
+            nonlocal batch_idx, batch_max_tok, done
+            if not batch_idx:
+                return
+            texts = [all_texts[i] for i in batch_idx]
+            vecs = embedder.encode(texts).numpy().astype(np.float16)
+            emb[batch_idx] = vecs
+            done += len(batch_idx)
+            if done % 5000 < len(batch_idx):
+                rate = done / (time.time() - t0)
+                eta = (len(miss) - done) / max(rate, 1)
+                print(f"  {done}/{len(miss)}  {rate:.0f} chunks/s  eta {eta/60:.1f} min", flush=True)
+            batch_idx = []
+            batch_max_tok = 0
+
+        for i in order:
+            ntok = min(len(tok.encode(all_texts[i], add_special_tokens=True)), embedder.max_length)
+            new_max = max(batch_max_tok, ntok)
+            if batch_idx and new_max * (len(batch_idx) + 1) > TOKEN_BUDGET:
+                flush()
+                new_max = ntok
+            batch_idx.append(int(i))
+            batch_max_tok = new_max
+        flush()
+
+        cache_store({hashes[i]: emb[i].tobytes() for i in miss})
 
     np.save(paths["index"] / "embeddings.npy", emb)
     db.close()
-    print(f"done in {(time.time()-t0)/60:.1f} min -> {paths['index']}", flush=True)
+
+    # shrink guard: a rebuild is destructive (index.sqlite was unlinked above);
+    # if the fresh index covers far fewer debates than the pre-build one, that
+    # is almost always a parse/source regression, not reality -- restore the
+    # backup and bail rather than let it reach the app (see docs/postmortem.md
+    # 5.11). daily_sync.py has its own copy of this check for the app-restart
+    # step; this one covers a manual `build_index.py <slug>` run.
+    videos_after = _video_count(paths["index"] / "index.sqlite")
+    if (videos_before and videos_after is not None
+            and videos_after < videos_before * SHRINK_GUARD and not force):
+        shutil.copy2(guard_ref, paths["index"] / "index.sqlite")
+        emb_ref = guard_ref.parent / "embeddings.npy"
+        if emb_ref.exists():
+            shutil.copy2(emb_ref, paths["index"] / "embeddings.npy")
+        sys.exit(
+            f"ABORT: rebuilt index has {videos_after} videos vs {videos_before} before "
+            f"(>{int((1 - SHRINK_GUARD) * 100)}% drop). Restored the pre-build index "
+            f"from {guard_ref.parent}. Re-run with --force if the shrink is real."
+        )
+    print(f"done in {(time.time() - t0) / 60:.1f} min -> {paths['index']}", flush=True)
 
 
 if __name__ == "__main__":

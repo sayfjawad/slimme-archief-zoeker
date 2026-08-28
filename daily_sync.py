@@ -71,12 +71,24 @@ def sync_person(slug: str) -> tuple[str, bool, int]:
     any_fail = False
     total_new = 0
 
+    # Text-only bulk configs (config/<slug>.json with no "ob"/"youtube"
+    # section) skip Handelingen, YouTube and debate-video downloads entirely
+    # -- their index is built purely from the shared TK verslag pool (they
+    # still pick up any Debat Direct video another person already downloaded,
+    # via app.py's dg_media() resolver, for free).
+    has_ob = bool(cfg.get("ob"))
+    has_youtube = bool((cfg.get("youtube") or {}).get("channels"))
+    text_only = not has_ob and not has_youtube
+
     steps = [
         ("tk_sync", [sys.executable, "tk_sync.py"], 1800),
         ("tk_parse", [sys.executable, "tk_parse.py"], 900),
-        ("ob_sync", [sys.executable, "ob_sync.py"], 1800),
-        ("ob_parse", [sys.executable, "ob_parse.py"], 900),
     ]
+    if has_ob:
+        steps += [
+            ("ob_sync", [sys.executable, "ob_sync.py"], 1800),
+            ("ob_parse", [sys.executable, "ob_parse.py"], 900),
+        ]
     for name, cmd, timeout in steps:
         ok, last, dt, _ = run(cmd, env, timeout)
         lines.append(f"[{'OK' if ok else 'FAILED'}] {name} ({dt:.0f}s): {last}")
@@ -92,14 +104,16 @@ def sync_person(slug: str) -> tuple[str, bool, int]:
                 pass
 
     # YouTube: yt_sync.py has no summary line, so measure the opus-file delta
-    before_opus = count(p["youtube"], "*.opus")
-    ok, last, dt, tail = run([sys.executable, "yt_sync.py"], env, 3600)
-    after_opus = count(p["youtube"], "*.opus")
-    new_audio = after_opus - before_opus
-    lines.append(f"[{'OK' if ok else 'FAILED'}] yt_sync ({dt:.0f}s): {new_audio} new audio file(s)")
-    if not ok:
-        any_fail = True
-        lines.append(f"    {tail[-1] if tail else ''}")
+    new_audio = 0
+    if has_youtube:
+        before_opus = count(p["youtube"], "*.opus")
+        ok, last, dt, tail = run([sys.executable, "yt_sync.py"], env, 3600)
+        after_opus = count(p["youtube"], "*.opus")
+        new_audio = after_opus - before_opus
+        lines.append(f"[{'OK' if ok else 'FAILED'}] yt_sync ({dt:.0f}s): {new_audio} new audio file(s)")
+        if not ok:
+            any_fail = True
+            lines.append(f"    {tail[-1] if tail else ''}")
 
     if new_audio > 0:
         diarize_env = {**env, "HF_HOME": "/data/huggingface"}
@@ -122,8 +136,12 @@ def sync_person(slug: str) -> tuple[str, bool, int]:
     # child survived the kill -- subprocess.run only signals its direct
     # child -- and had to be cleaned up by hand). 5h gives headroom above
     # one marathon debate plus the rest of that day's smaller dates.
-    ok, last, dt, tail = run([sys.executable, "dg_sync.py", slug], env, 5 * 3600)
-    lines.append(f"[{'OK' if ok else 'FAILED'}] dg_sync ({dt:.0f}s): {last}")
+    if text_only:
+        ok, last, dt, tail = True, "skipped (text-only config)", 0, []
+        lines.append("[OK] dg_sync: skipped (text-only config)")
+    else:
+        ok, last, dt, tail = run([sys.executable, "dg_sync.py", slug], env, 5 * 3600)
+        lines.append(f"[{'OK' if ok else 'FAILED'}] dg_sync ({dt:.0f}s): {last}")
     if not ok:
         any_fail = True
         lines.append(f"    {tail[-1] if tail else ''}")
