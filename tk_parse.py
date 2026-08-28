@@ -181,7 +181,11 @@ def best_per_vergadering(state: dict) -> dict:
 def main():
     pos = [a for a in sys.argv[1:] if not a.startswith("--")]
     parse_all = "--all" in sys.argv  # pool pre-population: keep every debate
-    cfg = load_config(pos[0] if pos else None)
+    shard = (0, 1)  # --shard i/n : split the verslag list across machines
+    if "--shard" in sys.argv:                      # (only with --all; each shard
+        i, n = sys.argv[sys.argv.index("--shard") + 1].split("/")  # writes a
+        shard = (int(i), int(n))                   # disjoint set of files, so
+    cfg = load_config(pos[0] if pos else None)     # parallel runs are safe)
     ensure_dirs(cfg)
     paths = cfg["_paths"]
     match = None if parse_all else cfg["tk"]["match"]
@@ -212,6 +216,8 @@ def main():
         if verslag_id[:8] in already_parsed:
             reused += 1
             continue
+        if shard[1] > 1 and int(verslag_id[:8], 16) % shard[1] != shard[0]:
+            continue
         xml_path = paths["tk_xml"] / f"{verslag_id}.xml"
         result = parse_verslag(xml_path, verslag_id, match)
         if result is None:
@@ -236,7 +242,8 @@ def main():
     if parse_all:
         # manifest of every speaker in the debates added this run -- daily_sync
         # rebuilds only the politicians who appear in it, not all ~100.
-        (paths["shared_transcripts"].parent / "last_parse_new.json").write_text(
+        name = "last_parse_new.json" if shard[1] == 1 else f"last_parse_new.shard{shard[0]}.json"
+        (paths["shared_transcripts"].parent / name).write_text(
             json.dumps({"date": datetime.now().strftime("%Y-%m-%d"),
                         "written": written, "new_speakers": sorted(new_speakers)}),
             encoding="utf-8",
