@@ -1,0 +1,13 @@
+{
+  "person": "Maarten Hijink",
+  "slug": "hijink",
+  "data_dir": "/data/HIJINK",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Hijink",
+      "voornaam": "Maarten"
+    },
+    "since": "2013-01-01"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "person": "Piet Adema",
+  "slug": "adema",
+  "data_dir": "/data/ADEMA",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Adema",
+      "voornaam": "Piet"
+    },
+    "since": "2013-01-01"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "person": "Karien Van Gennip",
+  "slug": "van-gennip",
+  "data_dir": "/data/VAN_GENNIP",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Gennip",
+      "voornaam": "Karien"
+    },
+    "since": "2013-01-01"
+  }
+}

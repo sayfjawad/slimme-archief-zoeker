@@ -1,0 +1,13 @@
+{
+  "person": "Barry Madlener",
+  "slug": "madlener",
+  "data_dir": "/data/MADLENER",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Madlener",
+      "voornaam": "Barry"
+    },
+    "since": "2013-01-01"
+  }
+}

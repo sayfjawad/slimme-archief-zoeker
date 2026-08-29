@@ -1,0 +1,13 @@
+{
+  "person": "Eric Wiebes",
+  "slug": "wiebes",
+  "data_dir": "/data/WIEBES",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Wiebes",
+      "voornaam": "Eric"
+    },
+    "since": "2013-01-01"
+  }
+}

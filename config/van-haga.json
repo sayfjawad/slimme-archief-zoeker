@@ -1,0 +1,13 @@
+{
+  "person": "Wybren Van Haga",
+  "slug": "van-haga",
+  "data_dir": "/data/VAN_HAGA",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Haga",
+      "voornaam": "Wybren"
+    },
+    "since": "2013-01-01"
+  }
+}

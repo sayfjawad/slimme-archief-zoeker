@@ -1,0 +1,13 @@
+{
+  "person": "Menno Snel",
+  "slug": "snel",
+  "data_dir": "/data/SNEL",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Snel",
+      "voornaam": "Menno"
+    },
+    "since": "2013-01-01"
+  }
+}

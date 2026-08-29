@@ -1,0 +1,13 @@
+{
+  "person": "Henk Vermeer",
+  "slug": "vermeer",
+  "data_dir": "/data/VERMEER",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Vermeer",
+      "voornaam": "Henk"
+    },
+    "since": "2013-01-01"
+  }
+}

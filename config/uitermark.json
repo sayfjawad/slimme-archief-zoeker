@@ -1,0 +1,13 @@
+{
+  "person": "Judith Uitermark",
+  "slug": "uitermark",
+  "data_dir": "/data/UITERMARK",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Uitermark",
+      "voornaam": "Judith"
+    },
+    "since": "2013-01-01"
+  }
+}

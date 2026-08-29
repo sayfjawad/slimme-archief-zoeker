@@ -1,0 +1,13 @@
+{
+  "person": "Hugo De Jonge",
+  "slug": "de-jonge",
+  "data_dir": "/data/DE_JONGE",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Jonge",
+      "voornaam": "Hugo"
+    },
+    "since": "2013-01-01"
+  }
+}

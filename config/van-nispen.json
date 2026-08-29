@@ -1,0 +1,13 @@
+{
+  "person": "Michiel Van Nispen",
+  "slug": "van-nispen",
+  "data_dir": "/data/VAN_NISPEN",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Nispen",
+      "voornaam": "Michiel"
+    },
+    "since": "2013-01-01"
+  }
+}

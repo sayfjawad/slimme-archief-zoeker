@@ -1,0 +1,13 @@
+{
+  "person": "Esther Ouwehand",
+  "slug": "ouwehand",
+  "data_dir": "/data/OUWEHAND",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Ouwehand",
+      "voornaam": "Esther"
+    },
+    "since": "2013-01-01"
+  }
+}

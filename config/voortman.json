@@ -1,0 +1,13 @@
+{
+  "person": "Linda Voortman",
+  "slug": "voortman",
+  "data_dir": "/data/VOORTMAN",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Voortman",
+      "voornaam": "Linda"
+    },
+    "since": "2013-01-01"
+  }
+}

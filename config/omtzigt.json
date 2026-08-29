@@ -1,0 +1,13 @@
+{
+  "person": "Pieter Omtzigt",
+  "slug": "omtzigt",
+  "data_dir": "/data/OMTZIGT",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Omtzigt",
+      "voornaam": "Pieter"
+    },
+    "since": "2013-01-01"
+  }
+}

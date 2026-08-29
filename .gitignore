@@ -5,3 +5,6 @@ index/
 stats.sqlite
 hosts.env
 local-data/
+
+data/*.log
+data/onboard_logs/

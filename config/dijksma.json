@@ -1,0 +1,13 @@
+{
+  "person": "Sharon Dijksma",
+  "slug": "dijksma",
+  "data_dir": "/data/DIJKSMA",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Dijksma",
+      "voornaam": "Sharon"
+    },
+    "since": "2013-01-01"
+  }
+}

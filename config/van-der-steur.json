@@ -1,0 +1,13 @@
+{
+  "person": "Ard Van der Steur",
+  "slug": "van-der-steur",
+  "data_dir": "/data/VAN_DER_STEUR",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Steur",
+      "voornaam": "Ard"
+    },
+    "since": "2013-01-01"
+  }
+}

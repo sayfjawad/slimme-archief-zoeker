@@ -1,0 +1,13 @@
+{
+  "person": "Lodewijk Asscher",
+  "slug": "asscher",
+  "data_dir": "/data/ASSCHER",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Asscher",
+      "voornaam": "Lodewijk"
+    },
+    "since": "2013-01-01"
+  }
+}

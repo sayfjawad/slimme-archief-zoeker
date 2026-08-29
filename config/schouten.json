@@ -1,0 +1,13 @@
+{
+  "person": "Carola Schouten",
+  "slug": "schouten",
+  "data_dir": "/data/SCHOUTEN",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Schouten",
+      "voornaam": "Carola"
+    },
+    "since": "2013-01-01"
+  }
+}

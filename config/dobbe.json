@@ -1,0 +1,13 @@
+{
+  "person": "Sarah Dobbe",
+  "slug": "dobbe",
+  "data_dir": "/data/DOBBE",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Dobbe",
+      "voornaam": "Sarah"
+    },
+    "since": "2013-01-01"
+  }
+}

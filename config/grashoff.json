@@ -1,0 +1,13 @@
+{
+  "person": "Rik Grashoff",
+  "slug": "grashoff",
+  "data_dir": "/data/GRASHOFF",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Grashoff",
+      "voornaam": "Rik"
+    },
+    "since": "2013-01-01"
+  }
+}

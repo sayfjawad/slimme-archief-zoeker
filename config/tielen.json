@@ -1,0 +1,13 @@
+{
+  "person": "Judith Tielen",
+  "slug": "tielen",
+  "data_dir": "/data/TIELEN",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Tielen",
+      "voornaam": "Judith"
+    },
+    "since": "2013-01-01"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "person": "Melanie Schultz van Haegen-Maas Geesteranus",
+  "slug": "schultz-van-haegen-maas-geesteranus",
+  "data_dir": "/data/SCHULTZ_VAN_HAEGEN_MAAS_GEESTERANUS",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Schultz",
+      "voornaam": "Melanie"
+    },
+    "since": "2013-01-01"
+  }
+}

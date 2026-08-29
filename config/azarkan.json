@@ -1,0 +1,13 @@
+{
+  "person": "Farid Azarkan",
+  "slug": "azarkan",
+  "data_dir": "/data/AZARKAN",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Azarkan",
+      "voornaam": "Farid"
+    },
+    "since": "2013-01-01"
+  }
+}

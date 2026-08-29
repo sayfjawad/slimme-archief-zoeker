@@ -1,0 +1,13 @@
+{
+  "person": "Wopke Hoekstra",
+  "slug": "hoekstra",
+  "data_dir": "/data/HOEKSTRA",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Hoekstra",
+      "voornaam": "Wopke"
+    },
+    "since": "2013-01-01"
+  }
+}

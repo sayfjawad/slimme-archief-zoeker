@@ -1,0 +1,13 @@
+{
+  "person": "Martijn Van Dam",
+  "slug": "van-dam",
+  "data_dir": "/data/VAN_DAM",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Dam",
+      "voornaam": "Martijn"
+    },
+    "since": "2013-01-01"
+  }
+}

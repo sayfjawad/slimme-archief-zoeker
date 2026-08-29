@@ -1,0 +1,13 @@
+{
+  "person": "Caroline Van der Plas",
+  "slug": "van-der-plas",
+  "data_dir": "/data/VAN_DER_PLAS",
+  "tk": {
+    "odata_base": "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0",
+    "match": {
+      "achternaam": "Plas",
+      "voornaam": "Caroline"
+    },
+    "since": "2013-01-01"
+  }
+}
