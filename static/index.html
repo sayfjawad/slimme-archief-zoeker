@@ -37,10 +37,11 @@ body{margin:0;background:var(--bg);color:var(--ink);
 #lang-toggle:hover{background:rgba(10,12,18,.6)}
 .person-picker{margin:6px 0 2px;display:flex;align-items:center;gap:8px;
   font-size:.9rem;color:#c9d2e8}
-#person-select{font:inherit;font-size:.95rem;font-weight:600;color:#fff;
+#person-input{font:inherit;font-size:.95rem;font-weight:600;color:#fff;
   background:rgba(10,12,18,.35);border:1px solid rgba(255,255,255,.35);
-  border-radius:10px;padding:6px 12px;cursor:pointer;max-width:100%}
-#person-select option{color:#1e2430;background:#fff}
+  border-radius:10px;padding:6px 12px;cursor:text;min-width:240px;max-width:100%}
+#person-input::placeholder{color:#9fb0cf;font-weight:400}
+#person-input option{color:#1e2430;background:#fff}
 @media (max-width:700px){
   .hero{flex-direction:column;align-items:stretch;gap:16px;padding:20px 18px}
   .hero h1{font-size:1.25rem;padding-inline-end:90px} .hero .tagline{font-size:.85rem}
@@ -122,8 +123,10 @@ tr.cited td{border-inline-start:3px solid var(--accent)}
     <div class="hero-text">
       <h1><span data-i18n="heroTitle">Archief</span> <span class="badge" id="count-badge"></span></h1>
       <div class="person-picker" id="person-picker" style="display:none">
-        <label for="person-select" data-i18n="pickPerson">Politicus:</label>
-        <select id="person-select"></select>
+        <label for="person-input" data-i18n="pickPerson">Politicus:</label>
+        <input id="person-input" list="person-list" autocomplete="off" spellcheck="false"
+               aria-label="Politicus zoeken">
+        <datalist id="person-list"></datalist>
       </div>
       <p class="tagline" data-i18n="heroTagline"></p>
     </div>
@@ -167,11 +170,13 @@ tr.cited td{border-inline-start:3px solid var(--accent)}
     video, de spreker en de brontekst. Zo kun je zelf nagaan wat er werkelijk gezegd is, in welke
     context, en uitspraken door de jaren heen naast elkaar leggen.</p>
     <h3>Hoe gebruik je het?</h3>
-    <p>Typ een vraag of onderwerp in het zoekveld — bijvoorbeeld "wat zei hij over de zorgpremie?"
-    of "kernenergie". <b>"Alleen zoeken"</b> toont de fragmenten; <b>"Vraag de AI"</b> schrijft een
+    <p>Typ een vraag of onderwerp in het zoekveld — bijvoorbeeld "wat zei
+    <span class="person-name">deze politicus</span> over de zorgpremie?" of "kernenergie".
+    <b>"Alleen zoeken"</b> toont de fragmenten; <b>"Vraag de AI"</b> schrijft een
     samenvatting met bronverwijzingen [n] die naar de fragmenten linken. Met het vinkje
-    "alleen uitspraken van <span class="person-name">Wilders</span>" beperk je de resultaten tot zijn eigen woorden; zonder vinkje
-    zoek je ook in de reacties van andere sprekers in dezelfde debatten.</p>
+    "alleen uitspraken van <span class="person-name">deze politicus</span>" beperk je de
+    resultaten tot de eigen woorden; zonder vinkje zoek je ook in de reacties van andere
+    sprekers in dezelfde debatten.</p>
     <h3>Bronnen &amp; techniek</h3>
     <p>Kamerverslagen zijn de gecorrigeerde, officiële transcripten (bron: gegevensmagazijn
     Tweede Kamer). Video-transcripties zijn automatisch gegenereerd en kunnen fouten bevatten —
@@ -190,12 +195,13 @@ tr.cited td{border-inline-start:3px solid var(--accent)}
     speaker and the source text. That lets you check what was actually said, in what context, and
     compare statements across the years.</p>
     <h3>How to use it</h3>
-    <p>Type a question or topic in the search box — e.g. "what did he say about healthcare
-    premiums?" or "nuclear energy". <b>"Search only"</b> shows the matching fragments;
+    <p>Type a question or topic in the search box — e.g. "what did
+    <span class="person-name">this politician</span> say about healthcare premiums?" or
+    "nuclear energy". <b>"Search only"</b> shows the matching fragments;
     <b>"Ask the AI"</b> writes a summary with source references [n] linking to the fragments.
-    The "only statements by <span class="person-name">Wilders</span>" checkbox limits results to his own words; uncheck it to also
-    search the responses of other speakers in the same debates. The archive is in Dutch, so Dutch
-    queries give the best results.</p>
+    The "only statements by <span class="person-name">this politician</span>" checkbox limits
+    results to their own words; uncheck it to also search the responses of other speakers in the
+    same debates. The archive is in Dutch, so Dutch queries give the best results.</p>
     <h3>Sources &amp; technology</h3>
     <p>Parliamentary records are the corrected official transcripts (source: Tweede Kamer open
     data). Video transcriptions are machine-generated and may contain errors — always verify
@@ -225,7 +231,7 @@ const I18N = {
     heroTagline:p=>`Alles wat ${p} in het openbaar zei — doorzoekbaar, met bron, datum en tijdstip.`,
     heroAlt:p=>`${p} onder een vergrootglas`,
     sub:"Slim semantisch zoeken in officiële Tweede Kamer-verslagen en transcripties van openbare video's — stel een vraag of zoek een onderwerp, en krijg de fragmenten met datum, tijdstip en afspeellinks.",
-    placeholder:'bijv. wat zei hij over de hypotheekrenteaftrek? / asielbeleid / kernenergie…',
+    placeholder:p=>`bijv. wat zei ${p} over de hypotheekrenteaftrek? / asielbeleid / kernenergie…`,
     btnAsk:'🤖 Vraag de AI', btnSearch:'🔍 Alleen zoeken',
     pickPerson:'Politicus:', statsLink:'📊 Statistieken',
     onlyPerson:p=>`alleen uitspraken van ${p}`,
@@ -250,7 +256,7 @@ const I18N = {
     heroTagline:p=>`Everything ${p} said in public — searchable, with source, date and timestamp.`,
     heroAlt:p=>`${p} under a magnifying glass`,
     sub:'Smart semantic search across official parliamentary transcripts and AI transcriptions of public videos — ask a question or search a topic, and get the fragments with date, timestamp and playback links. (The archive is in Dutch; Dutch queries give the best results.)',
-    placeholder:'e.g. what did he say about mortgage interest deduction? / asylum policy…',
+    placeholder:p=>`e.g. what did ${p} say about mortgage interest deduction? / asylum policy…`,
     btnAsk:'🤖 Ask the AI', btnSearch:'🔍 Search only',
     pickPerson:'Politician:', statsLink:'📊 Statistics',
     onlyPerson:p=>`only statements by ${p}`,
@@ -285,6 +291,16 @@ let lastStatus = null;
 // /api/persons is in). Kept in the URL so a link is shareable.
 let selectedPerson = new URLSearchParams(location.search).get('person')
                   || localStorage.getItem('person') || null;
+let personList = [];                 // [{slug, person}] from /api/persons
+const slugOf = name => {             // typed display name -> slug (fuzzy)
+  const q = (name || '').trim().toLowerCase();
+  if(!q) return null;
+  let m = personList.find(p => p.person.toLowerCase() === q);
+  if(!m){ const hits = personList.filter(p => p.person.toLowerCase().includes(q));
+          if(hits.length === 1) m = hits[0]; }
+  return m ? m.slug : null;
+};
+const nameOf = slug => (personList.find(p => p.slug === slug) || {}).person || slug;
 
 function setPersonInUrl(slug){
   const u = new URL(location.href);
@@ -296,8 +312,8 @@ async function loadPerson(slug, {rerun = false} = {}){
   selectedPerson = slug;
   localStorage.setItem('person', slug);
   setPersonInUrl(slug);
-  const sel = $('#person-select');
-  if(sel && sel.value !== slug) sel.value = slug;
+  const inp = $('#person-input');
+  if(inp && inp.value !== nameOf(slug)) inp.value = nameOf(slug);
   try{
     stats = await (await fetch('/api/stats?person=' + encodeURIComponent(slug))).json();
   }catch(e){ return; }
@@ -315,7 +331,7 @@ function applyLang(){
   document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = resolve(t(el.dataset.i18n)); });
   document.querySelectorAll('[data-i18n-alt]').forEach(el=>{ el.alt = resolve(t(el.dataset.i18nAlt)); });
   document.querySelectorAll('.person-name').forEach(el=>{ el.textContent = personName(); });
-  $('#q').placeholder = t('placeholder');
+  $('#q').placeholder = resolve(t('placeholder'));
   $('#th-num').title = t('thNumTitle');
   $('#th-date').title = t('thDateTitle');
   $('#lang-toggle').textContent = t('langBtn');
@@ -509,18 +525,23 @@ $('#btn-ask').onclick = ()=>run('ask');
 $('#btn-search').onclick = ()=>run('search');
 $('#q').addEventListener('keydown',e=>{ if(e.key==='Enter') run(e.ctrlKey?'search':'ask'); });
 
-$('#person-select').addEventListener('change', e => loadPerson(e.target.value, {rerun:true}));
+const personInput = $('#person-input');
+function commitPersonInput(){
+  const slug = slugOf(personInput.value);
+  if(slug && slug !== selectedPerson){ loadPerson(slug, {rerun:true}); }
+  else { personInput.value = nameOf(selectedPerson); }   // revert on no/ambiguous match
+}
+personInput.addEventListener('change', commitPersonInput);   // fires on datalist pick + blur
+personInput.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); commitPersonInput(); }});
+personInput.addEventListener('focus', () => personInput.select());
 
 fetch('/api/persons').then(r=>r.json()).then(d=>{
-  const persons = d.persons || [];
-  const sel = $('#person-select');
-  sel.innerHTML = persons.map(p =>
-    `<option value="${p.slug}">${esc(p.person)}</option>`).join('');
-  const slugs = persons.map(p=>p.slug);
+  personList = (d.persons || []).slice().sort((a,b)=>a.person.localeCompare(b.person, 'nl'));
+  $('#person-list').innerHTML = personList.map(p => `<option value="${esc(p.person)}">`).join('');
+  const slugs = personList.map(p=>p.slug);
   if(!slugs.includes(selectedPerson)) selectedPerson = d.default || slugs[0] || null;
-  // only show the picker when there's an actual choice to make
-  $('#person-picker').style.display = persons.length > 1 ? '' : 'none';
-  if(selectedPerson){ sel.value = selectedPerson; loadPerson(selectedPerson); }
+  $('#person-picker').style.display = personList.length > 1 ? '' : 'none';
+  if(selectedPerson){ personInput.value = nameOf(selectedPerson); loadPerson(selectedPerson); }
   else applyLang();
 }).catch(()=>{ applyLang(); });
 

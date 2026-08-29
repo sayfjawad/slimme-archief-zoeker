@@ -45,8 +45,13 @@ CONFIGS = load_all_configs()  # {slug: cfg} for every config/<slug>.json
 # every config/*.json.
 _PINNED = os.environ.get("PERSON") or None
 SERVED_SLUGS = [_PINNED] if _PINNED in CONFIGS else list(CONFIGS)
-# A request without an explicit person falls back to this.
-DEFAULT_SLUG = _PINNED if _PINNED in CONFIGS else (SERVED_SLUGS[0] if SERVED_SLUGS else None)
+# A request without an explicit person falls back to this: PERSON pin, else
+# the DEFAULT_PERSON env (the combined app's landing politician), else the
+# first slug alphabetically.
+_DEFAULT_ENV = os.environ.get("DEFAULT_PERSON") or None
+DEFAULT_SLUG = (_PINNED if _PINNED in CONFIGS else
+               _DEFAULT_ENV if _DEFAULT_ENV in CONFIGS else
+               (SERVED_SLUGS[0] if SERVED_SLUGS else None))
 # Debat Direct video is shared across everyone -- resolve it from any config.
 DG_DIR = next(iter(CONFIGS.values()))["_paths"]["debatgemist"] if CONFIGS else None
 STATS_DB = BASE / "stats.sqlite"  # outside index/ so re-indexing keeps history
@@ -70,12 +75,20 @@ def _load_person(slug: str, cfg: dict, device: str) -> dict | None:
     db = sqlite3.connect(db_path, check_same_thread=False)
     db.row_factory = sqlite3.Row
     matrix = torch.from_numpy(np.load(emb_path)).to(device)  # (n, 1024) fp16
-    match = (cfg["tk"]["match"]["achternaam"] or "").lower()
+    # "only statements by X" mask -- same both-names convention as
+    # tk_parse.person_speaks(), so "Bosma" doesn't also match "Bosman" etc.
+    m = cfg["tk"]["match"]
+    achter, voor = (m.get("achternaam") or "").lower(), (m.get("voornaam") or "").lower()
     rows = db.execute(
         "SELECT c.id, c.speaker, v.upload_date FROM chunks c JOIN videos v ON v.video = c.video ORDER BY c.id"
     ).fetchall()
     dates = np.array([int(r["upload_date"] or 0) for r in rows], dtype=np.int64)
-    person = np.array([match in (r["speaker"] or "").lower() for r in rows])
+
+    def _is_person(speaker: str) -> bool:
+        n = (speaker or "").lower()
+        return bool(achter) and achter in n and (not voor or voor in n)
+
+    person = np.array([_is_person(r["speaker"]) for r in rows])
     entry = dict(
         db=db,
         matrix=matrix,
