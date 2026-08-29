@@ -21,6 +21,8 @@ import json
 import os
 import re
 import sqlite3
+import threading
+from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 
@@ -59,10 +61,21 @@ STATS_DB = BASE / "stats.sqlite"  # outside index/ so re-indexing keeps history
 app = FastAPI(title="Politici Archief")
 
 # ---------------------------------------------------------------- index state
-# _state["persons"][slug] -> {db, matrix, dates, person_mask, videos, chunks,
-#                             person_chunks}
-# _state shared: embedder, device, dg_windows, llm_base_url (cache)
-_state: dict = {"persons": {}}
+# Indexes are loaded LAZILY -- on the first request for a politician -- and an
+# LRU cache keeps at most LRU_MAX resident (each is a few hundred MB of fp16
+# vectors). With ~100s of politicians, loading them all at startup would be
+# ~tens of GB of RAM and minutes of startup; on-demand + evict keeps the
+# footprint bounded and restarts fast. A cold politician's first search pays
+# a ~1-3s load from local disk.
+#   _state["persons"]: OrderedDict slug -> {db, matrix, dates, person_mask, ...}
+#   _state shared: embedder, device, dg_windows, llm_base_url (cache)
+#   PERSON_META: slug -> {slug, person, hero_image, videos, chunks} for EVERY
+#     servable politician (config + index on disk), built once at startup so
+#     /api/persons and the dropdown never need an index loaded.
+LRU_MAX = int(os.environ.get("PERSON_LRU_MAX", "48"))
+_state: dict = {"persons": OrderedDict()}
+_load_lock = threading.Lock()
+PERSON_META: dict[str, dict] = {}
 
 
 def _load_person(slug: str, cfg: dict, device: str) -> dict | None:
@@ -103,15 +116,61 @@ def _load_person(slug: str, cfg: dict, device: str) -> dict | None:
     return entry
 
 
+def _build_person_meta() -> None:
+    """Cheap manifest of every servable politician -- COUNT(videos) + npy row
+    count only, no embedding load."""
+    for slug in SERVED_SLUGS:
+        cfg = CONFIGS[slug]
+        idx = cfg["_paths"]["index"]
+        db_path, emb_path = idx / "index.sqlite", idx / "embeddings.npy"
+        if not db_path.exists() or not emb_path.exists():
+            continue
+        try:
+            con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+            videos = con.execute("SELECT COUNT(*) FROM videos").fetchone()[0]
+            con.close()
+            chunks = int(np.load(emb_path, mmap_mode="r").shape[0])
+        except (sqlite3.Error, ValueError, OSError) as e:
+            print(f"  [skip meta] {slug}: {e}")
+            continue
+        PERSON_META[slug] = {"slug": slug, "person": cfg["person"],
+                             "hero_image": cfg.get("hero_image"),
+                             "videos": videos, "chunks": chunks}
+
+
+def get_person(slug: str) -> dict:
+    """The loaded index entry for `slug`, loading it (and LRU-evicting the
+    oldest) on a cache miss. Assumes `slug` is already validated."""
+    persons = _state["persons"]
+    if slug in persons:
+        persons.move_to_end(slug)
+        return persons[slug]
+    with _load_lock:
+        if slug in persons:              # another request loaded it while we waited
+            persons.move_to_end(slug)
+            return persons[slug]
+        entry = _load_person(slug, CONFIGS[slug], _state["device"])
+        if entry is None:
+            raise HTTPException(404, f"no index for {slug!r}")
+        persons[slug] = entry
+        PERSON_META[slug]["person_chunks"] = entry["person_chunks"]
+        while len(persons) > LRU_MAX:
+            old, ent = persons.popitem(last=False)
+            try:
+                ent["db"].close()
+            except sqlite3.Error:
+                pass
+            print(f"  [evict] {old} (LRU, {len(persons)} resident)", flush=True)
+        return entry
+
+
 @app.on_event("startup")
 def load_index():
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    what = f"pinned to '{_PINNED}'" if _PINNED else f"{len(SERVED_SLUGS)} politician(s)"
-    print(f"loading index(es) on {device} ({what}):")
-    for slug in SERVED_SLUGS:
-        entry = _load_person(slug, CONFIGS[slug], device)
-        if entry is not None:
-            _state["persons"][slug] = entry
+    _state["device"] = device
+    _build_person_meta()
+    what = f"pinned to '{_PINNED}'" if _PINNED else f"{len(PERSON_META)} politician(s), lazy (LRU {LRU_MAX})"
+    print(f"index manifest built on {device} ({what})")
 
     # Debat Direct video mapping: wallclock -> (file, video_start). Shared
     # pool, loaded once (keyed by date+slug, reused by anyone who spoke).
@@ -132,14 +191,20 @@ def load_index():
         device=device,
         dg_windows=dg_windows,
     )
-    print(f"index ready: {len(_state['persons'])}/{len(SERVED_SLUGS)} politicians served, "
-          f"{len(dg_windows)} debate videos, default person '{DEFAULT_SLUG}'")
+    if DEFAULT_SLUG in PERSON_META:      # warm the landing politician
+        try:
+            get_person(DEFAULT_SLUG)
+        except HTTPException:
+            pass
+    print(f"index ready: {len(PERSON_META)} politicians servable (lazy), "
+          f"{len(dg_windows)} debate videos, default '{DEFAULT_SLUG}', "
+          f"{len(_state['persons'])} warm")
 
 
 def resolve_slug(person: str | None) -> str:
-    """Request person -> a slug that is actually loaded, or HTTP 400."""
+    """Request person -> a servable slug (not necessarily loaded yet), or 400."""
     slug = person or DEFAULT_SLUG
-    if slug not in _state["persons"]:
+    if slug not in PERSON_META:
         raise HTTPException(400, f"unknown or unavailable person: {person!r}")
     return slug
 
@@ -244,7 +309,7 @@ def dg_media(wallclock: str) -> tuple[str, str]:
 
 def retrieve(slug: str, query: str, top_k: int, date_from: str | None, date_to: str | None,
              only_person: bool = False):
-    st = {**_state, **_state["persons"][slug]}  # shared keys + this person's index
+    st = {**_state, **get_person(slug)}  # shared keys + this person's index (lazy-loaded)
     q = st["embedder"].encode([query]).to(device=st["device"], dtype=st["matrix"].dtype)  # (1, 1024)
     scores = (st["matrix"] @ q.T).squeeze(1).float()  # (n,)
     neg = torch.tensor(-1.0, device=scores.device)
@@ -426,31 +491,30 @@ def api_ask(req: AskReq, request: Request):
 
 
 def _person_summary(slug: str) -> dict:
-    p = _state["persons"][slug]
-    cfg = CONFIGS[slug]
-    return {
-        "slug": slug,
-        "person": cfg["person"],
-        "hero_image": cfg.get("hero_image"),
-        "videos": p["videos"],
-        "chunks": p["chunks"],
-        "person_chunks": p["person_chunks"],
-    }
+    """From PERSON_META (no index load); person_chunks only if the index
+    happens to be warm (it gets filled on first load)."""
+    meta = PERSON_META[slug]
+    out = {k: meta[k] for k in ("slug", "person", "hero_image", "videos", "chunks")}
+    if "person_chunks" in meta:
+        out["person_chunks"] = meta["person_chunks"]
+    return out
 
 
 @app.get("/api/persons")
 def api_persons():
     """Every politician this instance can serve, for the frontend dropdown."""
     return {
-        "default": DEFAULT_SLUG if DEFAULT_SLUG in _state["persons"] else next(iter(_state["persons"]), None),
-        "persons": sorted((_person_summary(s) for s in _state["persons"]),
+        "default": DEFAULT_SLUG if DEFAULT_SLUG in PERSON_META else next(iter(PERSON_META), None),
+        "persons": sorted((_person_summary(s) for s in PERSON_META),
                           key=lambda d: d["person"]),
     }
 
 
 @app.get("/api/stats")
 def api_stats(person: str | None = None):
-    return _person_summary(resolve_slug(person))
+    slug = resolve_slug(person)
+    get_person(slug)   # warm it (a search almost always follows) so person_chunks is known
+    return _person_summary(slug)
 
 
 # ---------------------------------------------------------------------- media
