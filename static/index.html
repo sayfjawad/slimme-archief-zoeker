@@ -480,10 +480,19 @@ function playLocal(i){
   other.pause(); other.removeAttribute('src'); other.load();
   other.style.display = 'none';
   p.style.display = '';
-  p.src = '/media/'+r.media_file;
+  // The offset into the media file is in media_url (#t=SECONDS): for YouTube
+  // it is r.start-2; for a Tweede Kamer debate it is (wallclock - video_start),
+  // computed server-side -- r.start there is a debate-relative value, NOT a
+  // position in this video file, so never seek to it directly.
+  const mt = /#t=(\d+)/.exec(r.media_url || '');
+  const seekTo = mt ? +mt[1] : Math.max((r.start || 0) - 2, 0);
+  p.src = '/media/' + r.media_file + '#t=' + seekTo;
   $('#player-info').innerHTML = `<b>${esc(r.title)}</b><br>${r.date} — ${t('startsAt')} ${r.start_fmt}`;
   $('#player-box').style.display='block';
-  p.onloadedmetadata = ()=>{ p.currentTime = Math.max(r.start-2,0); p.play(); };
+  p.onloadedmetadata = ()=>{
+    if(Math.abs((p.currentTime || 0) - seekTo) > 2) p.currentTime = seekTo;
+    p.play();
+  };
   p.load();
 }
 function stopPlayer(){
