@@ -112,6 +112,10 @@ def reconcile(st: dict, done_on_disk: set[str]) -> list[str]:
         p = st["politicians"].setdefault(slug, {"status": "pending", "attempts": 0})
         p["rank"] = int(row["rank"])
         p["person"] = f"{row['voornaam']} {row['verslagnaam']}".strip()
+        # carry the identity fields so start_build can pass them explicitly --
+        # the worker's own checkout may have a stale onboarding_queue.csv
+        p["voornaam"] = row["voornaam"]
+        p["achternaam"] = row["match_achternaam"]
         # already live on c4130 (hand-onboarded, or a previous orchestrator run)
         if slug in done_on_disk and p["status"] not in ("done", "building"):
             log(f"{slug}: already onboarded on c4130 -> done")
@@ -183,7 +187,7 @@ def _remote_index_exists(slug: str, worker: str | None) -> bool:
     return Path(idx).exists()
 
 
-def start_build(slug: str, worker: str) -> None:
+def start_build(slug: str, worker: str, p: dict) -> None:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     logf = LOG_DIR / f"{slug}.log"
     fh = open(logf, "ab")
@@ -192,13 +196,16 @@ def start_build(slug: str, worker: str) -> None:
     gpu = "1" if worker == "z8" else "0"   # z8 GPU0 is often busy; c4130 GPU0 is the free one
     env = (f"EMB_CACHE_DIR={EMB_CACHE_LOCAL} HF_HOME=/data/huggingface "
            f"ONBOARD_SKIP_BACKUP=1 CUDA_VISIBLE_DEVICES={gpu}")
+    # pass identity explicitly -- the worker's checkout may have a stale queue
+    ident = (f'{slug} --person "{p["person"]}" --voornaam "{p["voornaam"]}" '
+             f'--achternaam "{p["achternaam"]}"')
     if worker == "c4130":
         # foreground (no setsid): if the orchestrator dies the ssh dies and the
         # remote onboard_politician dies with it -- reconcile() then resets the
         # slug and it retries clean (onboard_politician clears its own partial).
-        cmd = ["ssh", C4130, f"cd {C4130_REPO} && {env} {C4130_PY} onboard_politician.py {slug}"]
+        cmd = ["ssh", C4130, f"cd {C4130_REPO} && {env} {C4130_PY} onboard_politician.py {ident}"]
     else:
-        cmd = ["bash", "-c", f"cd {REPO} && {env} {Z8_PY} onboard_politician.py {slug}"]
+        cmd = ["bash", "-c", f"cd {REPO} && {env} {Z8_PY} onboard_politician.py {ident}"]
     proc = subprocess.Popen(cmd, stdout=fh, stderr=subprocess.STDOUT)
     _running[slug] = {"worker": worker, "proc": proc, "fh": fh, "log": str(logf),
                       "started": time.time()}
@@ -321,7 +328,7 @@ def main() -> None:
                 p = st["politicians"][slug]
                 p.update(status="building", worker=w, started=now())
                 save_state(st)
-                start_build(slug, w)
+                start_build(slug, w, p)
 
         # reap finished; kill a build that has run far past any sane duration
         # (a hung ssh, a wedged NFS read) so its worker slot frees up

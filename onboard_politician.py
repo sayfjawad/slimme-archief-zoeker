@@ -66,8 +66,18 @@ def run(cmd: list[str], env: dict) -> None:
         die(f"{cmd[1] if cmd[0] == PY else cmd[0]} exited {r.returncode}")
 
 
+_FLAG_VALUES = {"--person", "--voornaam", "--achternaam", "--verslagnaam"}
+
+
 def main():
-    pos = [a for a in sys.argv[1:] if not a.startswith("--")]
+    pos, skip = [], False
+    for a in sys.argv[1:]:
+        if skip:
+            skip = False
+        elif a in _FLAG_VALUES:
+            skip = True
+        elif not a.startswith("--"):
+            pos.append(a)
     if not pos:
         die("usage: onboard_politician.py <slug> [--person .. --voornaam .. --achternaam ..]")
     slug = pos[0]
